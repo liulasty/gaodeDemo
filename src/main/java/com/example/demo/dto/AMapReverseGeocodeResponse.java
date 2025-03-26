@@ -2,6 +2,7 @@ package com.example.demo.dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Data;
+import org.apache.catalina.connector.Response;
 
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)

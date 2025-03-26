@@ -2,6 +2,7 @@ package com.example.demo.controller;
 
 import com.example.demo.dto.AMapIpGeolocationResponse;
 import com.example.demo.dto.AMapReverseGeocodeResponse;
+import com.example.demo.dto.GeocodeResponse;
 import com.example.demo.service.AMapGeocodeService;
 import com.example.demo.service.AMapIpGeolocationService;
 import com.example.demo.service.GeoLocationService;
@@ -75,7 +76,10 @@ public class GeocodeController {
         validateCoordinates(longitude, latitude);
 
         try {
-            String address = geocodeService.getFormattedAddress(longitude, latitude);
+            GeocodeResponse address = geocodeService.getFormattedAddress(longitude, latitude);
+            if (address == null) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(createErrorResponse("Address not found"));
+            }
             return ResponseEntity.ok(createSuccessResponse("address", address));
         } catch (Exception e) {
             logError(e);

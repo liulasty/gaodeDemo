@@ -1,5 +1,6 @@
 package com.example.demo.service;
 
+import com.example.demo.dto.GeocodeResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.CacheManager;
@@ -16,12 +17,13 @@ public class CachedAMapGeocodeService {
 
     @Cacheable(
             value = "geocodeCache",
-            key = "T(java.util.Locale).getDefault().toString() + '|' + #longitude + '|' + #latitude",
+            key = "#longitude + '|' + #latitude",
             unless = "#result == null || #result.isEmpty()",
             cacheManager = "cacheManager"
     )
-    public String getCachedAddress(double longitude, double latitude) {
+    public GeocodeResponse getCachedAddress(double longitude, double latitude) {
         log.info("未命中缓存，实际调用高德API: {},{}", longitude, latitude);
         return geocodeService.getFormattedAddress(longitude, latitude);
     }
+
 }
