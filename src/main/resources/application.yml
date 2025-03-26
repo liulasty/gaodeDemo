@@ -1,0 +1,10 @@
+amap:
+  api:
+    key: 2e7273dfce78babea2da965990bd842f # 替换为实际Key
+
+server:
+  port: 8080
+
+spring:
+  application:
+    name: geocode-service
