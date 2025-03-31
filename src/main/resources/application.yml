@@ -8,3 +8,52 @@ server:
 spring:
   application:
     name: geocode-service
+  datasource:
+    url: jdbc:mysql://localhost:3306/image_management_system?useSSL=false&serverTimezone=UTC&characterEncoding=UTF-8
+    username: root
+    password: yourpassword
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+  mvc:
+    pathmatch:
+      matching-strategy: ant_path_matcher
+
+file:
+  upload-dir: ./uploads
+
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.example.imagemgmt.entity
+  configuration:
+    map-underscore-to-camel-case: true
+
+crawler:
+  target:
+    url: https://example.com
+  save:
+    directory: ./downloaded-images
+  allowed:
+    extensions: .jpg,.jpeg,.png,.gif
+mybatis-plus:
+  configuration:
+    # 日志实现（可选）
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    # 是否开启下划线转驼峰
+    map-underscore-to-camel-case: true
+    # 二级缓存
+    cache-enabled: true
+  global-config:
+    db-config:
+      # 主键类型
+      id-type: auto
+      # 逻辑删除配置
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+  # Mapper XML文件位置
+  mapper-locations: classpath*:mapper/**/*.xml
+  # 类型别名包
+  type-aliases-package: com.example.demo

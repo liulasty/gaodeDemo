@@ -1,5 +1,6 @@
 package com.example.demo.service;
 
+import cn.hutool.core.util.StrUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -90,6 +91,10 @@ public class ImageCrawlerService {
 
     private void downloadImage(String imageUrl, String saveDir) throws IOException {
         String fileName = imageUrl.substring(imageUrl.lastIndexOf('/') + 1);
+        // 处理文件名后缀不规范后缀
+        fileName = normalizeExtension(fileName);
+        fileName = StrUtil.utf8Str(fileName);
+        String uuid = StrUtil.uuid();
         File outputFile = new File(saveDir, fileName);
 
         // 使用Apache Commons IO简化下载过程
@@ -99,5 +104,11 @@ public class ImageCrawlerService {
                 10000,  // 10秒连接超时
                 60000   // 60秒读取超时
         );
+    }
+    /**
+     * 处理时统一转换为小写或大小写不敏感匹配
+     */
+    private String normalizeExtension(String extension) {
+        return extension.toLowerCase();
     }
 }
