@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+		"http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace = "com.example.demo.mapper.RoleMapper">
+	
+	
+	<select id="findByPermissionId" resultType="com.example.demo.entity.Role">
+		select r.* from t_role r
+		inner join t_sys_role_permission srp on r.id = srp.role_id
+		where srp.permission_id = #{id}
+	</select>
+</mapper>
