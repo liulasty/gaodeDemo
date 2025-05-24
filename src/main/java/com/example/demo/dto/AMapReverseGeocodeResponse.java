@@ -4,6 +4,9 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Data;
 import org.apache.catalina.connector.Response;
 
+/**
+ * @author lz
+ */
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class AMapReverseGeocodeResponse {

@@ -2,11 +2,15 @@ package com.example.demo.exception;
 
 import java.io.IOException;
 
+/**
+ * @author lz
+ */
 public class FileStorageException extends Throwable {
 
     private String message;
     private IOException exception;
 
+    @Override
     public String getMessage() {
         return message;
     }

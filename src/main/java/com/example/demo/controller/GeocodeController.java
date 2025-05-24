@@ -120,4 +120,12 @@ public class GeocodeController {
 
 
     }
+
+    /**
+     * 获取IP地址对应的地理位置
+     */
+    @GetMapping("/fullLocation")
+    public String getFullLocationByIp(String ip) {
+        return aMapIpGeolocationService.getFullLocationByIp(ip);
+    }
 }

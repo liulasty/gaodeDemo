@@ -34,8 +34,12 @@ public class ImageCrawlerService {
 
     private Set<String> downloadedUrls = new HashSet<>();
 
+    public Set<String> getDownloadedUrls() {
+        return downloadedUrls;
+    }
+
     // 每天凌晨3点执行
-    @Scheduled(cron = "0 0 3 * * ?")
+    // @Scheduled(cron = "0 0 3 * * ?")
     public void crawlImages() {
         try {
             log.info("开始爬取图片: {}", targetUrl);
@@ -110,5 +114,49 @@ public class ImageCrawlerService {
      */
     private String normalizeExtension(String extension) {
         return extension.toLowerCase();
+    }
+
+    public void crawlImages(String saveDirectory, String targetUrl) {
+        try {
+            log.info("开始爬取图片: {}", targetUrl);
+
+            // 创建保存目录
+            Path savePath = Paths.get(saveDirectory);
+            if (!Files.exists(savePath)) {
+                Files.createDirectories(savePath);
+            }
+
+            // 获取网页内容
+            Document doc = Jsoup.connect(targetUrl).get();
+
+            // 选择所有图片标签
+            Elements imgElements = doc.select("img[src]");
+
+            int downloadedCount = 0;
+            for (Element img : imgElements) {
+                String imgUrl = img.absUrl("src");
+
+                // 检查是否已下载过
+                if (downloadedUrls.contains(imgUrl)) {
+                    continue;
+                }
+
+                // 检查文件扩展名
+                if (isAllowedExtension(imgUrl)) {
+                    try {
+                        downloadImage(imgUrl, savePath.toString());
+                        downloadedUrls.add(imgUrl);
+                        downloadedCount++;
+                        log.info("下载成功: {}", imgUrl);
+                    } catch (IOException e) {
+                        log.error("下载失败: {}", imgUrl, e);
+                    }
+                }
+            }
+
+            log.info("爬取完成，共下载 {} 张新图片", downloadedCount);
+        } catch (IOException e) {
+            log.error("爬取过程中发生错误", e);
+        }
     }
 }

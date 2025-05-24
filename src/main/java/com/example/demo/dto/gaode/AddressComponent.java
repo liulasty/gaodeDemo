@@ -6,6 +6,9 @@ import lombok.NoArgsConstructor;
 
 import java.util.List;
 
+/**
+ * @author lz
+ */
 @AllArgsConstructor
 @NoArgsConstructor
 public  class AddressComponent {

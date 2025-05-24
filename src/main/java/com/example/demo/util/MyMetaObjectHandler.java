@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
 
 /**
  * 自动填充字段处理器
+ * @author lz
  */
 @Component
 public class MyMetaObjectHandler implements MetaObjectHandler {

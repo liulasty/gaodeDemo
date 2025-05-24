@@ -1,6 +1,6 @@
 amap:
   api:
-    key: 2e7273dfce78babea2da965990bd842f # 替换为实际Key
+    key: 2e7273dfce78babea2da965990bd842f 
 
 server:
   port: 8080
@@ -11,7 +11,7 @@ spring:
   datasource:
     url: jdbc:mysql://localhost:3306/image_management_system?useSSL=false&serverTimezone=UTC&characterEncoding=UTF-8
     username: root
-    password: yourpassword
+    password: root
     driver-class-name: com.mysql.cj.jdbc.Driver
   servlet:
     multipart:
@@ -20,16 +20,59 @@ spring:
   mvc:
     pathmatch:
       matching-strategy: ant_path_matcher
+  security:
+    web:
+      exclude-filter:
+        - /doc.html 
+        - /webjars/**
+        - /v3/**
+        - /swagger-resources/**
+
 
 file:
   upload-dir: ./uploads
+  upload:
+    temp-dir: /tmp/invoice_uploads
+    max-size: 10MB
 
-mybatis:
-  mapper-locations: classpath:mapper/*.xml
-  type-aliases-package: com.example.imagemgmt.entity
+mybatis-plus:
   configuration:
+    # 控制台打印 SQL 日志（可选）
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    # 开启下划线转驼峰
     map-underscore-to-camel-case: true
+    # 启用二级缓存
+    cache-enabled: true
+    default-enum-type-handler: com.baomidou.mybatisplus.core.handlers.MybatisEnumTypeHandler
+  global-config:
+    db-config:
+      # 主键生成策略（AUTO 表示数据库自增或雪花ID等）
+      id-type: auto
+      # 逻辑删除字段配置
+      logic-delete-field: deleted  # 字段名
+      logic-delete-value: 1        # 删除状态值
+      logic-not-delete-value: 0    # 未删除状态值
+  # Mapper XML 文件路径（支持多级目录）
+  mapper-locations: classpath*:mapper/**/*.xml
+  # 实体类别名包路径（改成你的实际路径）
+  type-aliases-package: com.example.demo.dto
+  
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  api-docs:
+    path: /v3/api-docs
+  group-configs:
+    - group: 'default'
+      paths-to-match: '/**'
+    
 
+jwt:
+  secret-key: MRfmZhtRO8nmUiNA88ghWMH1trz8HBxiP7pPYZ4dcSU12NasZJ5otmnI3tOXIKH665MCzgYULu91Jj8lezxotOwGr8sjelAdbYmfxWoHGrjUrtahEA3qZ4HQEDwbMz3dF4SrJo9xApi6DUJYfFqhzzlykuYlMc7O1CTg5l6XgeTOAxt3jGCW23vJmONUBLlP
+  expiration: 3600000
+  refresh-expiration: 86400
 crawler:
   target:
     url: https://example.com
@@ -37,23 +80,12 @@ crawler:
     directory: ./downloaded-images
   allowed:
     extensions: .jpg,.jpeg,.png,.gif
-mybatis-plus:
-  configuration:
-    # 日志实现（可选）
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
-    # 是否开启下划线转驼峰
-    map-underscore-to-camel-case: true
-    # 二级缓存
-    cache-enabled: true
-  global-config:
-    db-config:
-      # 主键类型
-      id-type: auto
-      # 逻辑删除配置
-      logic-delete-field: deleted
-      logic-delete-value: 1
-      logic-not-delete-value: 0
-  # Mapper XML文件位置
-  mapper-locations: classpath*:mapper/**/*.xml
-  # 类型别名包
-  type-aliases-package: com.example.demo
+    
+invoice:
+  templates:
+    location: classpath:/templates/
+    default: standard_vat
+
+tesseract:
+  datapath: /usr/share/tesseract-ocr/4.00/tessdata
+  languages: chi_sim+eng

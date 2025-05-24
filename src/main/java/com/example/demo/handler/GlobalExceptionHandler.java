@@ -8,6 +8,9 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 
 import java.util.Collections;
 
+/**
+ * @author lz
+ */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 

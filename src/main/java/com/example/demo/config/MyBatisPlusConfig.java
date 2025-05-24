@@ -15,12 +15,29 @@ import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+/**
+ * MyBatis Plus 配置类
+ * <p>
+ * 该类用于配置 MyBatis-Plus 的相关插件和全局设置，包括分页插件、乐观锁插件、防止全表更新与删除插件等。
+ * 同时还设置了全局配置（如主键生成策略、逻辑删除字段等）以及自定义 MyBatis 配置（如驼峰命名转换、枚举类型处理等）。
+ *
+ * @author lz
+ * @date 2025/04/13 16:20:52
+ */
 @Configuration
-@MapperScan("com.example.demo") // 指定Mapper接口扫描路径
 public class MyBatisPlusConfig {
 
     /**
-     * MyBatis-Plus插件配置
+     * 配置 MyBatis-Plus 插件
+     * <p>
+     * 包含以下插件：
+     * <ul>
+     *     <li>分页插件：支持分页查询，并限制单页最大记录数。</li>
+     *     <li>乐观锁插件：支持版本号控制的乐观锁机制。</li>
+     *     <li>防止全表更新与删除插件：防止误操作导致的全表更新或删除。</li>
+     * </ul>
+     *
+     * @return MybatisPlusInterceptor 对象
      */
     @Bean
     public MybatisPlusInterceptor mybatisPlusInterceptor() {
@@ -42,7 +59,16 @@ public class MyBatisPlusConfig {
     }
 
     /**
-     * 全局配置
+     * 配置 MyBatis-Plus 全局设置
+     * <p>
+     * 包括以下内容：
+     * <ul>
+     *     <li>主键生成策略：AUTO 表示数据库自增。</li>
+     *     <li>逻辑删除字段及值：指定逻辑删除字段名及对应的已删除和未删除值。</li>
+     *     <li>自动填充功能：通过 MetaObjectHandler 实现字段的自动填充。</li>
+     * </ul>
+     *
+     * @return GlobalConfig 对象
      */
     @Bean
     public GlobalConfig globalConfig() {
@@ -59,14 +85,23 @@ public class MyBatisPlusConfig {
 
         globalConfig.setDbConfig(dbConfig);
 
-        // 设置MetaObjectHandler（自动填充功能）
+        // 设置 MetaObjectHandler（自动填充功能）
         globalConfig.setMetaObjectHandler(new MyMetaObjectHandler());
 
         return globalConfig;
     }
 
     /**
-     * 自定义MyBatis配置
+     * 自定义 MyBatis 配置
+     * <p>
+     * 包括以下内容：
+     * <ul>
+     *     <li>开启驼峰命名转换：将数据库字段名自动映射为驼峰命名的 Java 属性名。</li>
+     *     <li>枚举类型处理：使用自定义的 MybatisEnumTypeHandler 处理枚举类型。</li>
+     *     <li>缓存配置：启用二级缓存。</li>
+     * </ul>
+     *
+     * @return ConfigurationCustomizer 对象
      */
     @Bean
     public ConfigurationCustomizer configurationCustomizer() {

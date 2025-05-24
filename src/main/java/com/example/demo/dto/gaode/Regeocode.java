@@ -8,17 +8,22 @@ import lombok.NoArgsConstructor;
 import java.io.Serializable;
 import java.util.List;
 
-// Getters and Setters
+/**
+ * 重新地理编码
+ *
+ * @author lz
+ * @date 2025/04/13 15:48:38
+ */
 @AllArgsConstructor
 @NoArgsConstructor
 public  class Regeocode implements Serializable {
     private List<Road> roads;
-    private List<Object> roadinters; // 根据数据，这里可能是空数组
+    private List<Object> roadinters; 
     @JsonProperty("formatted_address")
     private String formatted_address;
     @JsonProperty("addressComponent")
     private AddressComponent addressComponent;
-    private List<Object> aois; // 根据数据，这里可能是空数组
+    private List<Object> aois; 
     private List<Poi> pois;
 
 

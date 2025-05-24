@@ -6,6 +6,7 @@ import lombok.NoArgsConstructor;
 
 /**
  * 地理坐标点类
+ * @author lz
  */
 @Data
 @NoArgsConstructor

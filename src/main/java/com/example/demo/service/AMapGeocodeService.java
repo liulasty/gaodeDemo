@@ -54,15 +54,9 @@ public class AMapGeocodeService {
         // 2. 执行请求
         WebClient.ResponseSpec responseSpec = uri.retrieve();
 
-
         // 3. 解析响应体
         Mono<AMapReverseGeocodeResponse> responseMono =
                 responseSpec.bodyToMono(AMapReverseGeocodeResponse.class).doOnNext(response -> log.info("API Response: {}", response));
-
-
-
-
-
 
         return responseMono.timeout(Duration.ofSeconds(5));
     }
@@ -79,7 +73,6 @@ public class AMapGeocodeService {
         String url = "https://restapi.amap.com/v3/geocode/regeo?key=" + amapApiKey +
                 "&radius=1000&location=" + longitude + "," + latitude +
                 "&extensions=all&roadlevel=0";
-
 
         Map<String, Object> response = restTemplate.getForObject(url, Map.class);
 
