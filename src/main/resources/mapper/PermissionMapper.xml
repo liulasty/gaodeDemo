@@ -2,8 +2,57 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 		"http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
 <mapper namespace = "com.example.demo.mapper.PermissionMapper">
-	
+
+
 	<select id="findAll" resultType="com.example.demo.entity.Permission">
 		select * from t_permission
 	</select>
+
+	<!-- 根据角色名查找权限 -->
+	<select id="findByRole" resultType="com.example.demo.entity.Permission">
+		SELECT DISTINCT p.*
+		FROM t_permission p
+		INNER JOIN t_sys_role_permission rp ON p.id = rp.permission_id
+		INNER JOIN t_role r ON r.id = rp.role_id
+		WHERE r.name = #{roleName}
+	</select>
+
+	<!-- 根据角色名列表查找权限 -->
+	<select id="findByRoles" resultType="com.example.demo.entity.Permission">
+		SELECT DISTINCT p.*
+		FROM t_permission p
+		INNER JOIN t_sys_role_permission rp ON p.id = rp.permission_id
+		INNER JOIN t_role r ON r.id = rp.role_id
+		WHERE r.name IN
+		<foreach collection="roleNames" item="roleName" open="(" separator="," close=")">
+			#{roleName}
+		</foreach>
+	</select>
+
+	<!-- 添加权限并关联角色 -->
+	<insert id="addPermission">
+		<!-- 1. 插入权限记录 -->
+		INSERT INTO t_permission (path, method, name, description)
+		VALUES (#{path}, #{method}, 
+				CONCAT(
+					CASE WHEN #{method} IS NOT NULL THEN CONCAT(#{method}, '_') ELSE '' END,
+					REPLACE(#{path}, '/', '_')
+				),
+				'动态添加的权限'
+		);
+		
+		<!-- 2. 获取刚插入的权限ID -->
+		<selectKey keyProperty="permissionId" resultType="long" order="AFTER">
+			SELECT LAST_INSERT_ID()
+		</selectKey>
+		
+		<!-- 3. 插入角色-权限关联记录 -->
+		INSERT INTO t_sys_role_permission (role_id, permission_id)
+		SELECT r.id, #{permissionId}
+		FROM t_role r
+		WHERE r.name IN
+		<foreach collection="roles" item="roleName" open="(" separator="," close=")">
+			#{roleName}
+		</foreach>
+	</insert>
 </mapper>

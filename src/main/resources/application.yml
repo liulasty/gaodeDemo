@@ -11,7 +11,7 @@ spring:
   datasource:
     url: jdbc:mysql://localhost:3306/image_management_system?useSSL=false&serverTimezone=UTC&characterEncoding=UTF-8
     username: root
-    password: root
+    password: 1234
     driver-class-name: com.mysql.cj.jdbc.Driver
   servlet:
     multipart:

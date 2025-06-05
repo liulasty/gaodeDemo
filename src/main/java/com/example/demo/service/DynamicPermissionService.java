@@ -51,4 +51,8 @@ public class DynamicPermissionService {
 
         return permissionMap;
     }
+
+    public void addPermission(String path, String method, String[] roles) {
+        permissionMapper.addPermission(path, method, roles);
+    }
 }

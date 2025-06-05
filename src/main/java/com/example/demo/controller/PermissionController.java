@@ -1,26 +1,69 @@
 package com.example.demo.controller;
 
 import com.example.demo.entity.Permission;
+import com.example.demo.service.PermissionRefreshService;
 import com.example.demo.service.PermissionService;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 // 定义一个控制器类，处理与权限相关的HTTP请求
 @RestController
-@RequestMapping("/permissions")
+@RequestMapping("/api/permissions")
+@RequiredArgsConstructor
 public class PermissionController {
 
     // 自动注入PermissionService实例，用于权限相关的业务操作
-    @Autowired
-    private PermissionService permissionService;
+    private final PermissionService permissionService;
+    private final PermissionRefreshService permissionRefreshService;
 
-    // 响应GET请求，获取所有权限信息
+    /**
+     * 获取所有权限
+     */
     @GetMapping
+    @PreAuthorize("hasRole('ADMIN')")
     public List<Permission> getAllPermissions() {
         // 调用service方法获取所有权限列表并返回
         return permissionService.list();
+    }
+
+    /**
+     * 根据角色获取权限
+     */
+    @GetMapping("/by-role/{roleName}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public List<Permission> getPermissionsByRole(@PathVariable String roleName) {
+        return permissionService.findByRole(roleName);
+    }
+
+    /**
+     * 动态添加新的权限
+     */
+    @PostMapping("/dynamic")
+    @PreAuthorize("hasRole('ADMIN')")
+    public void addDynamicPermission(@RequestBody Map<String, Object> request) {
+        String path = (String) request.get("path");
+        String method = (String) request.get("method");
+        @SuppressWarnings("unchecked")
+        List<String> roles = (List<String>) request.get("roles");
+        
+        permissionRefreshService.addPermissionAndRefresh(
+            path, 
+            method, 
+            roles.toArray(new String[0])
+        );
+    }
+
+    /**
+     * 刷新权限配置
+     */
+    @PostMapping("/refresh")
+    @PreAuthorize("hasRole('ADMIN')")
+    public void refreshPermissions() {
+        permissionRefreshService.refreshPermissions();
     }
 
     // 响应POST请求，添加新的权限信息

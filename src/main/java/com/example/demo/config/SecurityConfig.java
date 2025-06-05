@@ -47,6 +47,7 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthFilter;
     private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
     private final DynamicSecurityMetadataSource dynamicSecurityMetadataSource;
+    private final DynamicAccessDecisionManager accessDecisionManager;
     // 用户详情服务
     private final UserDetailsService userDetailsService;
 
@@ -72,12 +73,15 @@ public class SecurityConfig {
     public SecurityConfig(JwtAuthenticationFilter jwtAuthFilter,
                           UserDetailsService userDetailsService,
                           LogoutHandler logoutHandler,
-                          JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint, DynamicSecurityMetadataSource dynamicSecurityMetadataSource) {
+                          JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint,
+                          DynamicSecurityMetadataSource dynamicSecurityMetadataSource,
+                          DynamicAccessDecisionManager accessDecisionManager) {
         this.jwtAuthFilter = jwtAuthFilter;
         this.userDetailsService = userDetailsService;
         this.logoutHandler = logoutHandler;
         this.jwtAuthenticationEntryPoint = jwtAuthenticationEntryPoint;
         this.dynamicSecurityMetadataSource = dynamicSecurityMetadataSource;
+        this.accessDecisionManager = accessDecisionManager;
     }
 
     @Bean
@@ -101,6 +105,18 @@ public class SecurityConfig {
 
                         // 其他所有请求需要认证
                         .anyRequest().authenticated()
+                )
+
+                // 添加动态权限决策管理器
+                .authorizeHttpRequests(auth -> auth
+                        .withObjectPostProcessor(new ObjectPostProcessor<FilterSecurityInterceptor>() {
+                            @Override
+                            public <O extends FilterSecurityInterceptor> O postProcess(O fsi) {
+                                fsi.setSecurityMetadataSource(dynamicSecurityMetadataSource);
+                                fsi.setAccessDecisionManager(accessDecisionManager);
+                                return fsi;
+                            }
+                        })
                 )
 
                 // 会话管理（无状态，因为使用JWT）
@@ -129,17 +145,6 @@ public class SecurityConfig {
                             response.setStatus(HttpStatus.OK.value());
                         })
                 );
-
-        // 添加动态权限决策管理器
-        http.authorizeHttpRequests(auth -> auth
-                .withObjectPostProcessor(new ObjectPostProcessor<FilterSecurityInterceptor>() {
-                    @Override
-                    public <O extends FilterSecurityInterceptor> O postProcess(O fsi) {
-                        fsi.setSecurityMetadataSource(dynamicSecurityMetadataSource);
-                        return fsi;
-                    }
-                })
-        );
 
         return http.build();
     }

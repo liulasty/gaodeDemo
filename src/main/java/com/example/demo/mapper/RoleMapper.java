@@ -23,4 +23,6 @@ public interface RoleMapper extends BaseMapper<Role> {
      * @return {@code List<Role> }
      */
     List<Role> findByPermissionId(Long id);
+
+    Role findByName(String roleName);
 }

@@ -9,4 +9,7 @@
 		inner join t_sys_role_permission srp on r.id = srp.role_id
 		where srp.permission_id = #{id}
 	</select>
+    <select id="findByName" resultType="com.example.demo.entity.Role">
+		select * from t_role where name = #{name}
+	</select>
 </mapper>
