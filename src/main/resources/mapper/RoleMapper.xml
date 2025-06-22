@@ -12,4 +12,9 @@
     <select id="findByName" resultType="com.example.demo.entity.Role">
 		select * from t_role where name = #{name}
 	</select>
+    <select id="findByUserId" resultType="com.example.demo.entity.Role">
+		select r.* from t_role r
+		inner join t_sys_user_role ur on r.id = ur.role_id
+		where ur.user_id = #{userId}
+	</select>
 </mapper>

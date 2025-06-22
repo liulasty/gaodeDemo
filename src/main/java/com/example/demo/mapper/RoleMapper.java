@@ -4,6 +4,7 @@ package com.example.demo.mapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.example.demo.entity.Role;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
 
@@ -24,5 +25,19 @@ public interface RoleMapper extends BaseMapper<Role> {
      */
     List<Role> findByPermissionId(Long id);
 
+    /**
+     * 根据角色名称查找角色
+     *
+     * @param roleName 角色名称
+     * @return {@code Role}
+     */
     Role findByName(String roleName);
+    
+    /**
+     * 根据用户ID查找用户拥有的所有角色
+     *
+     * @param userId 用户ID
+     * @return {@code List<Role>} 角色列表
+     */
+    List<Role> findByUserId(@Param("userId") Integer userId);
 }

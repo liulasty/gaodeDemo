@@ -12,9 +12,10 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 
 @Data
 @Builder
@@ -26,29 +27,53 @@ public class User implements UserDetails {
     @TableId(type = IdType.AUTO) // 指定主键并设置自增
     private Integer id;
 
-    @TableField("firstname")
-    private String firstname;
-
-    @TableField("lastname")
-    private String lastname;
+    @TableField("username")
+    private String username;
 
     @TableField("email")
     private String email;
 
     @TableField("password")
     private String password;
+    
+    @TableField("created_at")
+    private LocalDateTime createdAt;
+    
+    @TableField("updated_at")
+    private LocalDateTime updatedAt;
 
-    @TableField("role")
-    private String role;
+    @TableField("last_login")
+    private LocalDateTime lastLogin;
+    
+    @TableField("status")
+    private Integer status;
+    
+    @TableField(exist = false)
+    private List<Role> roles = new ArrayList<>();
+    
+    @TableField(exist = false)
+    private List<Permission> permissions = new ArrayList<>();
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return List.of(new SimpleGrantedAuthority(role));
+        List<SimpleGrantedAuthority> authorities = new ArrayList<>();
+        
+        // 添加角色权限
+        for (Role role : roles) {
+            authorities.add(new SimpleGrantedAuthority("ROLE_" + role.getName()));
+        }
+        
+        // 添加具体权限
+        for (Permission permission : permissions) {
+            authorities.add(new SimpleGrantedAuthority(permission.getName()));
+        }
+        
+        return authorities;
     }
 
     @Override
     public String getUsername() {
-        return email;
+        return username;
     }
 
     @Override
@@ -68,6 +93,6 @@ public class User implements UserDetails {
 
     @Override
     public boolean isEnabled() {
-        return true;
+        return status == 1;
     }
 }

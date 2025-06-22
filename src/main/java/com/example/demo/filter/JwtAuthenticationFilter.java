@@ -1,10 +1,15 @@
 package com.example.demo.filter;
 
+import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.MalformedJwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
+import jakarta.servlet.ServletRequest;
+import jakarta.servlet.ServletResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -12,8 +17,9 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
+import org.springframework.util.AntPathMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
-import com.example.demo.util.JwtService;
+import com.example.demo.service.JwtService;
 
 import java.io.IOException;
 
@@ -25,6 +31,7 @@ import java.io.IOException;
  * @author lz
  */
 @Component
+@Slf4j
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
@@ -43,33 +50,42 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 filterChain.doFilter(request, response);
                 return;
             }
-            // 1. 从Authorization头中获取JWT令牌
+            
+            // 2. 从Authorization头中获取JWT令牌
             final String authHeader = request.getHeader("Authorization");
             if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                log.warn("Missing or invalid Authorization header");
                 continueFilterChain(filterChain, request, response);
                 return;
             }
 
-            // 2. 提取纯令牌（去掉"Bearer "前缀）
+            // 3. 提取纯令牌（去掉"Bearer "前缀）
             final String jwt = extractJwt(authHeader);
 
-            // 3. 验证令牌是否有效
-            if (!jwtService.isTokenValid(jwt)) {
-                continueFilterChain(filterChain, request, response);
+            // 4. 验证令牌并提取用户名
+            String username;
+            try {
+                username = extractUsernameFromJwt(jwt);
+                // 验证令牌有效性
+                jwtService.validateToken(jwt);
+            } catch (ExpiredJwtException e) {
+                log.warn("Token expired: {}", e.getMessage());
+                handleException(e, response, "Token已过期", HttpServletResponse.SC_UNAUTHORIZED);
+                return;
+            } catch (MalformedJwtException e) {
+                log.warn("Malformed token: {}", e.getMessage());
+                handleException(e, response, "Token格式错误", HttpServletResponse.SC_BAD_REQUEST);
+                return;
+            } catch (IllegalArgumentException e) {
+                log.warn("Invalid token: {}", e.getMessage());
+                handleException(e, response, "无效的JWT令牌", HttpServletResponse.SC_BAD_REQUEST);
                 return;
             }
-
-            // 4. 从JWT中提取用户名
-            final String username = extractUsernameFromJwt(jwt);
 
             // 5. 如果用户名不为空且当前上下文没有认证信息
             if (SecurityContextHolder.getContext().getAuthentication() == null) {
-                // 6. 从数据库加载用户详情并验证令牌
+                // 6. 从数据库加载用户详情
                 UserDetails userDetails = userDetailsService.loadUserByUsername(username);
-                if (!jwtService.isTokenValidForUser(jwt, userDetails)) {
-                    continueFilterChain(filterChain, request, response);
-                    return;
-                }
 
                 // 7. 创建认证令牌
                 UsernamePasswordAuthenticationToken authToken = createAuthenticationToken(userDetails, request);
@@ -81,22 +97,29 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             // 9. 继续过滤器链
             continueFilterChain(filterChain, request, response);
         } catch (Exception e) {
-            handleException(e, response);
+            log.error("JWT认证失败: {} - {}", e.getClass().getSimpleName(), e.getMessage());
+            handleException(e, response, "认证失败", HttpServletResponse.SC_UNAUTHORIZED);
         }
     }
 
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        return isPublicEndpoint(request);
+    }
+
     private boolean isPublicEndpoint(HttpServletRequest request) {
-        // 添加公开端点的URL列表
+        // 使用路径匹配器替代直接字符串比较
+        AntPathMatcher pathMatcher = new AntPathMatcher();
         String[] publicEndpoints = {
                 "/api/auth/login",
                 "/api/auth/refresh-token",
                 "/api/geocode/address",
                 "/api/geocode/ip",
                 "/swagger-ui.html",
-                "/v3/api-docs",
-            };
+                "/v3/api-docs"
+        };
         for (String endpoint : publicEndpoints) {
-            if (request.getRequestURI().equals(endpoint)) {
+            if (pathMatcher.match(endpoint, request.getRequestURI())) {
                 return true;
             }
         }
@@ -113,7 +136,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     // 从JWT中提取用户名
     private String extractUsernameFromJwt(String jwt) {
-        String username = jwtService.extractUsername(jwt);
+        String username = jwtService.extractUserId(jwt);
         if (username == null || username.isEmpty()) {
             throw new IllegalArgumentException("JWT 令牌无效：缺少用户名");
         }
@@ -138,8 +161,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     // 异常处理
     private void handleException(Exception e, HttpServletResponse response) throws IOException {
-        logger.error("发生异常: {}", e);
-        // 返回适当的HTTP状态码
-        response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized");
+        if (e instanceof IllegalArgumentException) {
+            response.sendError(HttpServletResponse.SC_BAD_REQUEST, e.getMessage());
+        } else {
+            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized");
+        }
+    }
+
+    private void handleException(Exception e, HttpServletResponse response, String message, int statusCode) throws IOException {
+        response.setStatus(statusCode);
+        response.getWriter().write(message);
     }
 }

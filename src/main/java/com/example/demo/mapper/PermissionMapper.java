@@ -38,5 +38,13 @@ public interface PermissionMapper extends BaseMapper<Permission> {
      */
     List<Permission> findByRoles(@Param("roleNames") List<String> roleNames);
 
+    /**
+     * 根据用户ID查询权限列表
+     *
+     * @param userId 用户ID
+     * @return {@code List<Permission>} 权限列表
+     */
+    List<Permission> findPermissionsByUserId(@Param("userId") Long userId);
+
     void addPermission(String path, String method, String[] roles);
 }

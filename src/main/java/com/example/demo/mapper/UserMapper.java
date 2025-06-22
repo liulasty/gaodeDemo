@@ -22,4 +22,15 @@ public interface UserMapper extends BaseMapper<User> {
      */
     @Select("SELECT * FROM t_sys_user WHERE email = #{email}")
     User findByEmail(String email);
+
+    /**
+     * 根据用户名查询用户信息。
+     *
+     *  @param username 用户名，不能为空。
+     *  @return 包含用户信息的 ScopedValue<User> 对象，如果未找到则返回空值。
+     *  @throws IllegalArgumentException 如果传入的 username 参数为空。
+     *  @throws Exception 其他异常。
+     */
+    @Select("SELECT * FROM t_sys_user WHERE username = #{username}")
+    User findByUsername(String username);
 }

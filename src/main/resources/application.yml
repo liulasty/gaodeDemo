@@ -8,10 +8,12 @@ server:
 spring:
   application:
     name: geocode-service
+  main:
+    allow-bean-definition-overriding: true
   datasource:
-    url: jdbc:mysql://localhost:3306/image_management_system?useSSL=false&serverTimezone=UTC&characterEncoding=UTF-8
-    username: root
-    password: 1234
+    url: ${MYSQL_URL:jdbc:mysql://localhost:3306/dynamic_menu?useSSL=false&serverTimezone=Asia/Shanghai}
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:1234}
     driver-class-name: com.mysql.cj.jdbc.Driver
   servlet:
     multipart:
@@ -27,7 +29,43 @@ spring:
         - /webjars/**
         - /v3/**
         - /swagger-resources/**
-
+    oauth2:
+      client:
+        registration:
+          github:
+            client-id: ${GITHUB_CLIENT_ID:your-github-client-id}
+            client-secret: ${GITHUB_CLIENT_SECRET:your-github-client-secret}
+            scope: user:email,read:user
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:your-google-client-id}
+            client-secret: ${GOOGLE_CLIENT_SECRET:your-google-client-secret}
+            scope: profile,email
+      # 授权服务器配置
+      authorization-server:
+        client:
+          client:
+            registration:
+              client-id: client
+              client-secret: "{noop}secret"
+              client-authentication-methods:
+                - client_secret_basic
+              authorization-grant-types:
+                - authorization_code
+                - refresh_token
+                - client_credentials
+              redirect-uris:
+                - http://127.0.0.1:8080/login/oauth2/code/client
+                - http://127.0.0.1:8080/authorized
+              scopes:
+                - openid
+                - profile
+                - read
+                - write
+              require-authorization-consent: true
+      # 资源服务器配置
+      resourceserver:
+        jwt:
+          jwk-set-uri: http://localhost:8080/.well-known/jwks.json
 
 file:
   upload-dir: ./uploads
@@ -47,13 +85,9 @@ mybatis-plus:
   global-config:
     db-config:
       # 主键生成策略（AUTO 表示数据库自增或雪花ID等）
-      id-type: auto
-      # 逻辑删除字段配置
-      logic-delete-field: deleted  # 字段名
-      logic-delete-value: 1        # 删除状态值
-      logic-not-delete-value: 0    # 未删除状态值
+      id-type: AUTO
   # Mapper XML 文件路径（支持多级目录）
-  mapper-locations: classpath*:mapper/**/*.xml
+  mapper-locations: classpath*:/mapper/**/*Mapper.xml
   # 实体类别名包路径（改成你的实际路径）
   type-aliases-package: com.example.demo.dto
   
@@ -70,9 +104,10 @@ springdoc:
     
 
 jwt:
-  secret-key: MRfmZhtRO8nmUiNA88ghWMH1trz8HBxiP7pPYZ4dcSU12NasZJ5otmnI3tOXIKH665MCzgYULu91Jj8lezxotOwGr8sjelAdbYmfxWoHGrjUrtahEA3qZ4HQEDwbMz3dF4SrJo9xApi6DUJYfFqhzzlykuYlMc7O1CTg5l6XgeTOAxt3jGCW23vJmONUBLlP
-  expiration: 3600000
-  refresh-expiration: 86400
+  secret: ${JWT_SECRET:nh2309y5bh2kl5jbh43kj5h2kj4h5kj2h45j2h45jk2h45kj2h45kj2h45k24jhg5jkh}
+  expiration: 86400000  # 一天
+  refresh-expiration: 604800000  # 一周
+
 crawler:
   target:
     url: https://example.com
@@ -89,3 +124,16 @@ invoice:
 tesseract:
   datapath: /usr/share/tesseract-ocr/4.00/tessdata
   languages: chi_sim+eng
+
+# 日志配置
+logging:
+  level:
+    root: INFO
+    org.springframework.security: DEBUG
+    org.springframework.security.oauth2: DEBUG
+    org.springframework.security.oauth2.jwt: TRACE  # 添加JWT处理的详细日志
+
+# OAuth2初始化配置
+oauth2:
+  init:
+    enabled: true  # 是否在应用启动时初始化OAuth2数据库

@@ -28,8 +28,16 @@
 			#{roleName}
 		</foreach>
 	</select>
+    <select id="findPermissionsByUserId" resultType="com.example.demo.entity.Permission">
+		SELECT DISTINCT p.*
+		FROM t_permission p
+		INNER JOIN t_sys_role_permission rp ON p.id = rp.permission_id
+		INNER JOIN t_role r ON r.id = rp.role_id
+		INNER JOIN t_sys_user_role ur ON r.id = ur.role_id
+		WHERE ur.user_id = #{userId}
+	</select>
 
-	<!-- 添加权限并关联角色 -->
+    <!-- 添加权限并关联角色 -->
 	<insert id="addPermission">
 		<!-- 1. 插入权限记录 -->
 		INSERT INTO t_permission (path, method, name, description)
