@@ -25,6 +25,13 @@ import org.springframework.security.oauth2.server.authorization.settings.ClientS
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.interfaces.RSAPrivateKey;
@@ -38,7 +45,8 @@ import java.util.UUID;
 @Configuration
 @Slf4j
 public class AuthorizationServerConfig {
-
+    private static final String RSA_KEY_PAIR_FILE = "rsa_key_pair.ser";
+    
     /**
      * 配置授权服务器的安全过滤器链
      * @param http HttpSecurity对象用于配置安全策略
@@ -83,20 +91,38 @@ public class AuthorizationServerConfig {
     @Bean
     public JWKSource<SecurityContext> jwkSource() {
         log.info("创建JWK源");
-        // 生成RSA密钥对
-        KeyPair keyPair = generateRsaKey();
+        KeyPair keyPair = loadOrGenerateRsaKeyPair();
         RSAPublicKey publicKey = (RSAPublicKey) keyPair.getPublic();
         RSAPrivateKey privateKey = (RSAPrivateKey) keyPair.getPrivate();
 
-        // 构建RSAKey对象
         RSAKey rsaKey = new RSAKey.Builder(publicKey)
                 .privateKey(privateKey)
-                .keyID(UUID.randomUUID().toString())
+                .keyID("fixed-key-id")  // 使用固定keyId，避免每次重启变化
                 .build();
 
-        // 创建JWK集合并返回不可变视图
         JWKSet jwkSet = new JWKSet(rsaKey);
         return new ImmutableJWKSet<>(jwkSet);
+    }
+
+    // 新增方法：加载或生成RSA密钥对
+    private KeyPair loadOrGenerateRsaKeyPair() {
+        try {
+            Path path = Paths.get(RSA_KEY_PAIR_FILE);
+            if (Files.exists(path)) {
+                try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(path.toFile()))) {
+                    return (KeyPair) ois.readObject();
+                }
+            } else {
+                KeyPair keyPair = generateRsaKey();
+                try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(path.toFile()))) {
+                    oos.writeObject(keyPair);
+                }
+                return keyPair;
+            }
+        } catch (Exception e) {
+            log.warn("无法加载/保存RSA密钥对，将使用临时生成的密钥对", e);
+            return generateRsaKey();
+        }
     }
 
     /**
@@ -122,8 +148,10 @@ public class AuthorizationServerConfig {
      * @return 配置好的JwtDecoder实例
      */
     @Bean
-    public JwtDecoder jwtDecoder(JWKSource<SecurityContext> jwkSource) {
-        return OAuth2AuthorizationServerConfiguration.jwtDecoder(jwkSource);
+    public JwtDecoder jwtDecoder() {
+        log.info("创建JWT解码器");
+        // 使用JWK源进行JWT验证（RS256）
+        return OAuth2AuthorizationServerConfiguration.jwtDecoder(jwkSource());
     }
 
     /**

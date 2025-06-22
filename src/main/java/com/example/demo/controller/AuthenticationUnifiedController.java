@@ -8,6 +8,7 @@ import com.example.demo.util.UserContext;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -21,6 +22,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.oauth2.jwt.Jwt;
 
 import java.util.HashMap;
 import java.util.List;
@@ -31,6 +33,7 @@ import java.util.stream.Collectors;
  * 统一认证控制器
  * 整合了所有与认证、用户信息、权限相关的接口
  */
+@Slf4j
 public class AuthenticationUnifiedController {
 
     /**
@@ -104,6 +107,8 @@ public class AuthenticationUnifiedController {
         @GetMapping("/oauth2-user")
         public ResponseEntity<Map<String, Object>> getOAuth2User(@AuthenticationPrincipal OAuth2User principal) {
             if (principal == null) {
+                Jwt o = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+                log.info("o: {}", o.getClaims());
                 return ResponseEntity.ok(Map.of("authenticated", false));
             }
 

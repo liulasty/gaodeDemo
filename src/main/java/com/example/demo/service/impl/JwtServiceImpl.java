@@ -1,11 +1,11 @@
 package com.example.demo.service.impl;
 
-import com.example.demo.dto.DefaultClaims;
 import com.example.demo.service.JwtService;
 import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.SecurityContext;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import lombok.extern.slf4j.Slf4j;
@@ -14,15 +14,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.oauth2.core.user.OAuth2User;
-import org.springframework.security.oauth2.jwt.JwtClaimsSet;
-import org.springframework.security.oauth2.jwt.JwtEncoder;
-import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
-import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
-import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.security.oauth2.jwt.JwtException;
+import org.springframework.security.oauth2.jwt.*;
 import org.springframework.stereotype.Service;
-
 
 import javax.crypto.SecretKey;
 import java.time.Instant;
@@ -74,18 +67,19 @@ public class JwtServiceImpl implements JwtService {
      */
     @Override
     public String generateToken(Authentication authentication) {
-        // 处理不同类型的认证主体(OAuth2用户或普通用户)
         String userId;
+        Map<String, Object> extraClaims = new HashMap<>();
+        
         if (authentication.getPrincipal() instanceof OAuth2User oauth2User) {
             Map<String, Object> attributes = oauth2User.getAttributes();
-            // 从OAuth2用户信息中提取用户标识
-            userId = attributes.get("sub") != null ? attributes.get("sub").toString() :
-                    (attributes.get("id") != null ? attributes.get("id").toString() :
-                            attributes.get("login").toString());
+            userId = attributes.get("sub") != null ? attributes.get("sub").toString() : (attributes.get("id") != null ? attributes.get("id").toString() : attributes.get("login").toString());
+            extraClaims.putAll(attributes);
+            extraClaims.put("provider", determineProvider(attributes));
         } else {
             userId = authentication.getName();
+            extraClaims.put("provider", "local");
         }
-        return generateToken(userId, authentication.getAuthorities());
+        return generateToken(userId, authentication.getAuthorities(), extraClaims);
     }
 
     /**
@@ -97,63 +91,16 @@ public class JwtServiceImpl implements JwtService {
      */
     @Override
     public String generateToken(String userId, Collection<? extends GrantedAuthority> authorities, Map<String, Object> extraClaims) {
-        // 尝试使用OAuth2标准格式生成JWT
-        try {
-            JwtEncoder encoder = new NimbusJwtEncoder(jwkSource);
-
-            // 将权限集合转换为角色字符串列表
-            List<String> roles = authorities.stream()
-                    .map(GrantedAuthority::getAuthority)
-                    .collect(Collectors.toList());
-
-            // 构建标准JWT声明
-            JwtClaimsSet.Builder claimsBuilder = JwtClaimsSet.builder()
-                    .subject(userId)
-                    .issuedAt(Instant.now())
-                    .expiresAt(Instant.now().plus(expiration, ChronoUnit.MILLIS))
-                    .claim("scope", String.join(" ", roles));
-
-            // 添加额外声明和角色信息
-            extraClaims.forEach(claimsBuilder::claim);
-            claimsBuilder.claim("roles", roles);
-
-            // 编码并返回令牌
-            return encoder.encode(JwtEncoderParameters.from(claimsBuilder.build())).getTokenValue();
-        } catch (Exception e) {
-            log.error("生成JWT令牌失败: {}", e.getMessage(), e);
-            // 如果标准格式失败，回退到旧格式
-            return generateTokenLegacy(userId, authorities, extraClaims);
-        }
-    }
-
-    /**
-     * 旧版JWT生成方法(兼容性备用)
-     * @param userId 用户唯一标识
-     * @param authorities 用户权限集合
-     * @param extraClaims 额外自定义声明
-     * @return 生成的JWT令牌字符串
-     */
-    private String generateTokenLegacy(String userId, Collection<? extends GrantedAuthority> authorities, Map<String, Object> extraClaims) {
-        // 合并额外声明和角色信息
-        Map<String, Object> claims = new HashMap<>(extraClaims);
-        List<String> roles = authorities.stream()
-                .map(GrantedAuthority::getAuthority)
-                .collect(Collectors.toList());
-        claims.put("roles", roles);
-        claims.put("scope", String.join(" ", roles));
-
-        // 设置令牌有效期
-        Date now = new Date();
-        Date expiryDate = new Date(now.getTime() + expiration);
-
-        // 使用jjwt库构建令牌
-        return Jwts.builder()
-                .claims(claims)
+        JwtEncoder encoder = new NimbusJwtEncoder(jwkSource);
+        List<String> roles = authorities.stream().map(GrantedAuthority::getAuthority).collect(Collectors.toList());
+        JwtClaimsSet.Builder claimsBuilder = JwtClaimsSet.builder()
                 .subject(userId)
-                .issuedAt(now)
-                .expiration(expiryDate)
-                .signWith(getSigningKey())
-                .compact();
+                .issuedAt(Instant.now())
+                .expiresAt(Instant.now().plus(expiration, ChronoUnit.MILLIS))
+                .claim("scope", String.join(" ", roles))
+                .claim("roles", roles);
+        extraClaims.forEach(claimsBuilder::claim);
+        return encoder.encode(JwtEncoderParameters.from(claimsBuilder.build())).getTokenValue();
     }
 
     /**
@@ -163,7 +110,8 @@ public class JwtServiceImpl implements JwtService {
      */
     @Override
     public String extractUserId(String token) {
-        return extractClaim(token, Claims::getSubject);
+        Jwt jwt = jwtDecoder.decode(token);
+        return jwt.getSubject();
     }
 
     /**
@@ -182,33 +130,11 @@ public class JwtServiceImpl implements JwtService {
         }
     }
 
-    /**
-     * 从令牌中提取指定声明
-     * @param token JWT令牌字符串
-     * @param claimsResolver 声明解析函数
-     * @return 解析后的声明值
-     */
-    private <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
-        final Claims claims = extractAllClaims(token);
-        return claimsResolver.apply(claims);
-    }
-
-    /**
-     * 提取令牌中的所有声明
-     * @param token JWT令牌字符串
-     * @return 包含所有声明的Claims对象
-     */
-    private Claims extractAllClaims(String token) {
-        try {
-            // 使用OAuth2解码器解码令牌
-            Jwt decodedJwt = jwtDecoder.decode(token);
-            Map<String, Object> claims = decodedJwt.getClaims();
-
-            return decodedJwt.
-        } catch (JwtException e) {
-            log.error("解析JWT令牌失败: {}", e.getMessage());
-            throw new RuntimeException("解析JWT令牌失败", e);
-        }
+    // 提取自定义claim的通用方法
+    public <T> T extractClaim(String token, String claimName, Class<T> clazz) {
+        Jwt jwt = jwtDecoder.decode(token);
+        Object claim = jwt.getClaim(claimName);
+        return clazz.cast(claim);
     }
 
     /**
@@ -218,5 +144,15 @@ public class JwtServiceImpl implements JwtService {
     private SecretKey getSigningKey() {
         byte[] keyBytes = Decoders.BASE64.decode(secretKey);
         return Keys.hmacShaKeyFor(keyBytes);
+    }
+
+    // 新增方法：确定OAuth2提供者
+    private String determineProvider(Map<String, Object> attributes) {
+        if (attributes.containsKey("github_id")) {
+            return "github";
+        } else if (attributes.containsKey("google_id")) {
+            return "google";
+        }
+        return "unknown";
     }
 }
