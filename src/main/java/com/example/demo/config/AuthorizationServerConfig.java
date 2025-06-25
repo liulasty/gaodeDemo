@@ -11,17 +11,12 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.oauth2.core.AuthorizationGrantType;
-import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
-import org.springframework.security.oauth2.core.oidc.OidcScopes;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.security.oauth2.server.authorization.client.InMemoryRegisteredClientRepository;
-import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
-import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
+import org.springframework.security.oauth2.jwt.JwtValidators;
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configuration.OAuth2AuthorizationServerConfiguration;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configurers.OAuth2AuthorizationServerConfigurer;
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
-import org.springframework.security.oauth2.server.authorization.settings.ClientSettings;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 
@@ -36,7 +31,7 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
-import java.util.UUID;
+import java.time.Duration;
 
 /**
  * 授权服务器配置类，用于配置OAuth2授权服务器的核心组件和安全设置
@@ -47,37 +42,7 @@ import java.util.UUID;
 public class AuthorizationServerConfig {
     private static final String RSA_KEY_PAIR_FILE = "rsa_key_pair.ser";
     
-    /**
-     * 配置授权服务器的安全过滤器链
-     * @param http HttpSecurity对象用于配置安全策略
-     * @return 配置好的SecurityFilterChain实例
-     * @throws Exception 配置过程中可能抛出的异常
-     *
-     * 主要功能：
-     * 1. 应用默认的OAuth2授权服务器安全配置
-     * 2. 启用OpenID Connect 1.0支持
-     * 3. 配置认证失败时跳转到登录页面
-     * 4. 配置资源服务器使用JWT令牌
-     */
-    @Bean
-    @Order(1)
-    public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http) throws Exception {
-        // 应用默认的OAuth2授权服务器安全配置
-        OAuth2AuthorizationServerConfiguration.applyDefaultSecurity(http);
 
-        // 启用OpenID Connect支持
-        http.getConfigurer(OAuth2AuthorizationServerConfigurer.class)
-                .oidc(Customizer.withDefaults());
-
-        // 配置异常处理和资源服务器
-        http
-            .exceptionHandling(exceptions ->
-                exceptions.authenticationEntryPoint(new LoginUrlAuthenticationEntryPoint("/login"))
-            )
-            .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()));
-
-        return http.build();
-    }
 
     /**
      * 创建JWK(JSON Web Key)源，用于提供JWT签名密钥
@@ -97,14 +62,24 @@ public class AuthorizationServerConfig {
 
         RSAKey rsaKey = new RSAKey.Builder(publicKey)
                 .privateKey(privateKey)
-                .keyID("fixed-key-id")  // 使用固定keyId，避免每次重启变化
+                // 使用固定keyId，避免每次重启变化
+                .keyID("fixed-key-id")
                 .build();
 
         JWKSet jwkSet = new JWKSet(rsaKey);
         return new ImmutableJWKSet<>(jwkSet);
     }
 
-    // 新增方法：加载或生成RSA密钥对
+    /**
+     * 加载或生成RSA密钥对
+     *
+     * @return 可用的RSA密钥对
+     *
+     * 实现逻辑：
+     * 1. 尝试从文件系统加载已保存的密钥对
+     * 2. 如果不存在则生成新密钥对并保存
+     * 3. 出现异常时生成临时密钥对
+     */
     private KeyPair loadOrGenerateRsaKeyPair() {
         try {
             Path path = Paths.get(RSA_KEY_PAIR_FILE);
@@ -125,6 +100,7 @@ public class AuthorizationServerConfig {
         }
     }
 
+
     /**
      * 生成RSA密钥对
      * @return 生成的KeyPair对象
@@ -143,8 +119,7 @@ public class AuthorizationServerConfig {
     }
 
     /**
-     * 创建JWT解码器
-     * @param jwkSource JWK源，用于验证JWT签名
+     * 创建自定义JWT解码器
      * @return 配置好的JwtDecoder实例
      */
     @Bean

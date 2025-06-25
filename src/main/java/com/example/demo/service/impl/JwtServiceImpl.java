@@ -110,7 +110,13 @@ public class JwtServiceImpl implements JwtService {
      */
     @Override
     public String extractUserId(String token) {
-        Jwt jwt = jwtDecoder.decode(token);
+        Jwt jwt = null;
+        try {
+            jwt = jwtDecoder.decode(token);
+        } catch (JwtException e) {
+            log.error("无效的JWT令牌: {}", e.getMessage());
+            throw new RuntimeException(e);
+        }
         return jwt.getSubject();
     }
 

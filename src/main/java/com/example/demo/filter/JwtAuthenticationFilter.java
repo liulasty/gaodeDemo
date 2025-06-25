@@ -1,5 +1,6 @@
 package com.example.demo.filter;
 
+import com.nimbusds.jose.proc.BadJOSEException;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.MalformedJwtException;
 import jakarta.servlet.FilterChain;
@@ -15,6 +16,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.util.AntPathMatcher;
@@ -54,7 +56,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             // 2. 从Authorization头中获取JWT令牌
             final String authHeader = request.getHeader("Authorization");
             if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-                log.warn("Missing or invalid Authorization header");
+                log.warn("Authorization 标头缺失或无效");
                 continueFilterChain(filterChain, request, response);
                 return;
             }
@@ -113,6 +115,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String[] publicEndpoints = {
                 "/api/auth/login",
                 "/api/auth/refresh-token",
+                "/api/auth/logout",
+                "/api/auth/register",
                 "/api/geocode/address",
                 "/api/geocode/ip",
                 "/swagger-ui.html",
@@ -159,17 +163,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         filterChain.doFilter(request, response);
     }
 
-    // 异常处理
-    private void handleException(Exception e, HttpServletResponse response) throws IOException {
-        if (e instanceof IllegalArgumentException) {
-            response.sendError(HttpServletResponse.SC_BAD_REQUEST, e.getMessage());
-        } else {
-            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized");
-        }
-    }
 
     private void handleException(Exception e, HttpServletResponse response, String message, int statusCode) throws IOException {
         response.setStatus(statusCode);
         response.getWriter().write(message);
+        throw new JwtException( message);
     }
 }

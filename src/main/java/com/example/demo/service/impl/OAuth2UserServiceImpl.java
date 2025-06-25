@@ -105,7 +105,7 @@ public class OAuth2UserServiceImpl implements OAuth2UserService<OAuth2UserReques
             user = User.builder()
                     .username( username)
                     .email(email)
-                    .status(1) // 状态正常
+                    .status(1)
                     .createdAt(LocalDateTime.now())
                     .updatedAt(LocalDateTime.now())
                     .build();

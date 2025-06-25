@@ -3,6 +3,7 @@ package com.example.demo.config;
 import com.example.demo.filter.JwtAuthenticationEntryPoint;
 import com.example.demo.filter.JwtAuthenticationFilter;
 import com.example.demo.service.DynamicSecurityMetadataSource;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -12,6 +13,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.AuthenticationProvider;
+import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.ObjectPostProcessor;
@@ -25,6 +28,7 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationProvider;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.intercept.FilterSecurityInterceptor;
@@ -35,6 +39,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.security.interfaces.RSAPublicKey;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -52,6 +57,7 @@ public class SecurityConfig {
     private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
     private final DynamicSecurityMetadataSource dynamicSecurityMetadataSource;
     private final DynamicAccessDecisionManager accessDecisionManager;
+    private final JwtDecoder jwtDecoder;
     // 用户详情服务
     private final UserDetailsService userDetailsService;
 
@@ -79,11 +85,13 @@ public class SecurityConfig {
     private static final String IMAGES_POST_PATH = "/api/images/**";
     private static final String GEOCODE_PATH = "/api/geocode/**";
 
+
     public SecurityConfig(JwtAuthenticationFilter jwtAuthFilter,
                           UserDetailsService userDetailsService,
                           LogoutHandler logoutHandler,
                           JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint,
                           DynamicSecurityMetadataSource dynamicSecurityMetadataSource,
+                          JwtDecoder jwtDecoder,
                           DynamicAccessDecisionManager accessDecisionManager) {
         this.userDetailsService = userDetailsService;
         this.logoutHandler = logoutHandler;
@@ -91,16 +99,16 @@ public class SecurityConfig {
         this.dynamicSecurityMetadataSource = dynamicSecurityMetadataSource;
         this.accessDecisionManager = accessDecisionManager;
         this.jwtAuthFilter = jwtAuthFilter;
+        this.jwtDecoder = jwtDecoder;
     }
 
-    // 移除了这两个Bean，因为我们将使用现有的配置并集成OAuth2
+
 
     @Bean
     @Order(3)
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                .csrf(csrf -> csrf
-                        .ignoringRequestMatchers(
+                .csrf(csrf -> csrf.ignoringRequestMatchers(
                                 "/api/**", // API端点不需要CSRF保护
                                 "/oauth2/**" // OAuth2回调不需要CSRF保护
                         )
@@ -151,7 +159,7 @@ public class SecurityConfig {
                 // 认证提供者配置
                 .authenticationProvider(daoAuthenticationProvider())
 
-                // 移除自定义JWT过滤器
+
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
 
                 // 认证失败处理
@@ -168,9 +176,8 @@ public class SecurityConfig {
                         .defaultSuccessUrl("/", true)
                 )
 
-                // 配置OAuth2资源服务器 - 使用默认配置
-                .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults())
-                )
+                // 配置OAuth2资源服务器
+                .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.decoder(jwtDecoder)))
 
                 // 登出配置
                 .logout(logout -> logout
@@ -196,14 +203,30 @@ public class SecurityConfig {
     /**
      * 配置认证管理器bean
      *
-     * @param config 认证配置
      * @return 认证管理器
      * @throws Exception 异常
      */
     @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
-        return config.getAuthenticationManager();
+    public AuthenticationManager authenticationManager() throws Exception {
+
+        // 创建认证提供器列表
+        List<AuthenticationProvider> providers = new ArrayList<>();
+        providers.add(jwtAuthenticationProvider());
+
+        // 也可以添加其他认证提供器
+        // providers.add(otherAuthenticationProvider());
+
+        return new ProviderManager(providers);
     }
+
+    @Bean
+    public JwtAuthenticationProvider jwtAuthenticationProvider() {
+        return new JwtAuthenticationProvider(jwtDecoder);
+    }
+
+
+
+
 
     /**
      * 配置跨域资源共享(CORS)的Bean
@@ -233,31 +256,6 @@ public class SecurityConfig {
         return source;
     }
 
-    /**
-     * 配置认证入口点 bean
-     * <p>
-     * 此方法定义了一个 AuthenticationEntryPoint bean，用于处理未通过认证的请求
-     * 它根据异常类型返回更详细的错误信息，以帮助客户端理解认证失败的原因
-     *
-     * @return AuthenticationEntryPoint 实现，用于处理认证失败的情况
-     */
-    @Bean
-    public AuthenticationEntryPoint authenticationEntryPoint() {
-        return (request, response, authException) -> {
-            // 设置响应内容类型为 JSON
-            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-            // 设置响应状态码为未授权
-            response.setStatus(HttpStatus.UNAUTHORIZED.value());
-            // 根据异常类型返回更详细的错误信息
-            if (authException.getMessage().contains("Bad credentials")) {
-                // 如果认证失败是由于错误的凭证，返回特定的错误信息
-                response.getWriter().write("{ \"error\": \"未授权\", \"message\": \"用户名或密码无效\" }");
-            } else {
-                // 对于其他认证异常，返回通用的错误信息
-                response.getWriter().write("{ \"error\": \"未授权\", \"message\": \"认证失败\" }");
-            }
-        };
-    }
 
     @Bean
     public DaoAuthenticationProvider daoAuthenticationProvider() {
