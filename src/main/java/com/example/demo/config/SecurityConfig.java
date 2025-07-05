@@ -1,7 +1,9 @@
 package com.example.demo.config;
 
+import com.example.demo.entity.PermissionRule;
 import com.example.demo.filter.JwtAuthenticationEntryPoint;
 import com.example.demo.filter.JwtAuthenticationFilter;
+import com.example.demo.mapper.PermissionRuleMapper;
 import com.example.demo.service.DynamicSecurityMetadataSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -34,6 +36,8 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.intercept.FilterSecurityInterceptor;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.authentication.logout.LogoutHandler;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -60,6 +64,7 @@ public class SecurityConfig {
     private final JwtDecoder jwtDecoder;
     // 用户详情服务
     private final UserDetailsService userDetailsService;
+    private final PermissionRuleMapper permissionRuleMapper;
 
 
     // 登出处理器
@@ -73,11 +78,8 @@ public class SecurityConfig {
     private static final String AUTH_PATH = "/api/v1/auth/**";
     private static final String SWAGGER_PATH = "/v3/api-docs/**";
     private static final String SWAGGER_UI_PATH = "/doc.html";
-    ///webjars/**
     private static final String WEBJARS_PATH = "/webjars/**";
-    ///favicon.ico
     private static final String FAVICON_PATH = "/favicon.ico";
-    ///api/bank-statements/upload
     private static final String UPLOAD_PATH = "/api/bank-statements/upload";
     private static final String SWAGGER_UI_HTM_PATH = "/swagger-ui.html";
     private static final String SWAGGER_RESOURCES_PATH = "/swagger-resources/**";
@@ -92,7 +94,8 @@ public class SecurityConfig {
                           JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint,
                           DynamicSecurityMetadataSource dynamicSecurityMetadataSource,
                           JwtDecoder jwtDecoder,
-                          DynamicAccessDecisionManager accessDecisionManager) {
+                          DynamicAccessDecisionManager accessDecisionManager,
+                          PermissionRuleMapper permissionRuleMapper) {
         this.userDetailsService = userDetailsService;
         this.logoutHandler = logoutHandler;
         this.jwtAuthenticationEntryPoint = jwtAuthenticationEntryPoint;
@@ -100,6 +103,7 @@ public class SecurityConfig {
         this.accessDecisionManager = accessDecisionManager;
         this.jwtAuthFilter = jwtAuthFilter;
         this.jwtDecoder = jwtDecoder;
+        this.permissionRuleMapper = permissionRuleMapper;
     }
 
 
@@ -114,43 +118,28 @@ public class SecurityConfig {
                         )
                 )
                 // 授权配置
-                .authorizeHttpRequests(auth -> auth
-                        // 允许未认证访问的端点
-                        .requestMatchers(AUTH_PATH,
-                                SWAGGER_PATH,
-                                SWAGGER_UI_PATH,
-                                WEBJARS_PATH,
-                                FAVICON_PATH,
-                                SWAGGER_RESOURCES_PATH,
-                                SWAGGER_UI_HTM_PATH,
-                                "/api/auth/login",    // API登录端点
-                                "/api/auth/register", // API注册端点
-                                "/api/auth/check-email", // API邮箱检查端点
-                                "/oauth2/**",   // OAuth2回调端点
-                                "/login",       // 登录页面
-                                "/register",    // 注册页面
-                                "/login/**"     // OAuth2登录端点
-                        ).permitAll()
-                        // 图片相关端点权限控制
-                        .requestMatchers(HttpMethod.GET, IMAGES_GET_PATH).hasAnyRole("USER", "ADMIN")
-                        .requestMatchers(HttpMethod.POST, IMAGES_POST_PATH).hasRole("ADMIN")
-
-                        // 其他所有请求需要认证
-                        .anyRequest().authenticated()
+                .authorizeHttpRequests(auth -> {
+                    List<PermissionRule> rules = permissionRuleMapper.findAllEnabledRules();
+                            // 动态注册权限规则
+                            rules.forEach(rule -> {
+                                RequestMatcher matcher = createRequestMatcher(rule);
+                                if (rule.isPublic()) {
+                                    auth.requestMatchers(matcher).permitAll(); // 公开访问
+                                } else if (rule.getRequiredRoles() != null) {
+                                    auth.requestMatchers(matcher).hasAnyRole(rule.getRequiredRoles().split(",")); // 需特定角色
+                                } else {
+                                    auth.requestMatchers(matcher).authenticated(); // 需登录但无角色要求
+                                }
+                            });
+                            auth.requestMatchers(SWAGGER_PATH).permitAll();
+                            auth.requestMatchers(SWAGGER_UI_PATH).permitAll();
+                            auth.requestMatchers(WEBJARS_PATH).permitAll();
+                            auth.requestMatchers(FAVICON_PATH).permitAll();
+                            auth.requestMatchers(UPLOAD_PATH).permitAll();
+                            auth.requestMatchers(SWAGGER_UI_HTM_PATH).permitAll();
+                            auth.anyRequest().authenticated();
+                        }
                 )
-
-                // 添加动态权限决策管理器
-                .authorizeHttpRequests(auth -> auth
-                        .withObjectPostProcessor(new ObjectPostProcessor<FilterSecurityInterceptor>() {
-                            @Override
-                            public <O extends FilterSecurityInterceptor> O postProcess(O fsi) {
-                                fsi.setSecurityMetadataSource(dynamicSecurityMetadataSource);
-                                fsi.setAccessDecisionManager(accessDecisionManager);
-                                return fsi;
-                            }
-                        })
-                )
-
                 // 会话管理（无状态，因为使用JWT）
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
@@ -192,6 +181,17 @@ public class SecurityConfig {
                 );
 
         return http.build();
+    }
+
+
+
+    // 根据规则创建 RequestMatcher（支持Ant路径和HTTP方法）
+    private RequestMatcher createRequestMatcher(PermissionRule rule) {
+        if (rule.getHttpMethod() == null || rule.getHttpMethod().isEmpty()) {
+            return new AntPathRequestMatcher(rule.getPattern());
+        } else {
+            return new AntPathRequestMatcher(rule.getPattern(), rule.getHttpMethod());
+        }
     }
 
     @Bean

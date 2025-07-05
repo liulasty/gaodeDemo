@@ -129,7 +129,7 @@ tesseract:
 logging:
   level:
     root: INFO
-    org.springframework.security: DEBUG
+    org.springframework.security: info
     org.springframework.security.oauth2: DEBUG
     org.springframework.security.oauth2.jwt: TRACE  # 添加JWT处理的详细日志
 

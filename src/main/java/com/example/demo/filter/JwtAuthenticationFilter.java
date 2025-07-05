@@ -49,16 +49,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         try {
             // 1. 检查是否为公开接口（登录、刷新token、公开端点等）
             if (isPublicEndpoint(request)) {
-                filterChain.doFilter(request, response);
+                continueFilterChain(filterChain, request, response);
                 return;
             }
-            
+
             // 2. 从Authorization头中获取JWT令牌
             final String authHeader = request.getHeader("Authorization");
             if (authHeader == null || !authHeader.startsWith("Bearer ")) {
                 log.warn("Authorization 标头缺失或无效");
-                continueFilterChain(filterChain, request, response);
-                return;
+               throw new ServletException("Authorization 标头缺失或无效");
             }
 
             // 3. 提取纯令牌（去掉"Bearer "前缀）
@@ -120,7 +119,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 "/api/geocode/address",
                 "/api/geocode/ip",
                 "/swagger-ui.html",
-                "/v3/api-docs"
+                "/v3/api-docs",
+                "/doc.html",
+                "/swagger-ui/**",
+                "/v3/api-docs/**",
+                "/webjars/**",
+                "/favicon.ico",
+                "/error",
+                "/actuator/**",
         };
         for (String endpoint : publicEndpoints) {
             if (pathMatcher.match(endpoint, request.getRequestURI())) {
