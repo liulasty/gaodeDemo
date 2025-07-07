@@ -54,6 +54,6 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
     @Override
     protected String determineTargetUrl(HttpServletRequest request, HttpServletResponse response, Authentication authentication) {
         // 这里写你的前端回调地址
-        return "http://localhost:3000/oauth2/callback";
+        return "http://localhost:5173/oauth2/callback";
     }
 } 
