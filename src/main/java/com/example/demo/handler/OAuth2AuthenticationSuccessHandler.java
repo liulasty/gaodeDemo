@@ -50,4 +50,10 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
         // 重定向到前端应用
         getRedirectStrategy().sendRedirect(request, response, redirectUrl);
     }
+
+    @Override
+    protected String determineTargetUrl(HttpServletRequest request, HttpServletResponse response, Authentication authentication) {
+        // 这里写你的前端回调地址
+        return "http://localhost:3000/oauth2/callback";
+    }
 } 

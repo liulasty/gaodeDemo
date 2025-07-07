@@ -7,12 +7,10 @@ import com.example.demo.dto.LoginRequest;
 import com.example.demo.dto.LoginResponse;
 import com.example.demo.dto.RegisterRequest;
 import com.example.demo.dto.RegisterResponse;
-import com.example.demo.dto.SanitizedUser;
 import com.example.demo.entity.Permission;
 import com.example.demo.entity.Role;
 import com.example.demo.entity.SysUserRole;
 import com.example.demo.entity.User;
-import com.example.demo.exception.InvalidEmailException;
 import com.example.demo.exception.UserNotFoundException;
 import com.example.demo.mapper.PermissionMapper;
 import com.example.demo.mapper.RoleMapper;
@@ -21,26 +19,33 @@ import com.example.demo.mapper.UserMapper;
 import com.example.demo.service.UserService;
 import com.example.demo.service.JwtService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
  * 用户服务实现类
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
@@ -51,6 +56,7 @@ public class UserServiceImpl implements UserService {
     private final PermissionMapper permissionMapper;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final UserDetailsService userService;
     private final AuthenticationManager authenticationManager;
     private final Logger logger = LoggerFactory.getLogger(UserServiceImpl.class);
     
@@ -146,6 +152,9 @@ public class UserServiceImpl implements UserService {
                 // 获取用户权限
                 List<Permission> permissions = permissionMapper.findPermissionsByUserId(user.getId().longValue());
                 user.setPermissions(permissions);
+            }else {
+                logger.error("未找到用户角色");
+                throw new RuntimeException("未找到用户角色");
             }
             
             // 创建认证对象，正确使用UsernamePasswordAuthenticationToken构造函数
@@ -168,6 +177,7 @@ public class UserServiceImpl implements UserService {
                     .token(token)
                     .build();
         } catch (Exception e) {
+            logger.error("注册失败,"+e.getMessage(), e);
             throw new RuntimeException("注册失败,"+e.getMessage(), e);
         }
     }
@@ -181,7 +191,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public AuthenticationResponse authenticate(AuthenticationRequest request) {
         try {
-            String identifier = request.email();
+            String identifier = request.user();
             User user = null;
             
 
@@ -191,19 +201,22 @@ public class UserServiceImpl implements UserService {
                 throw new UserNotFoundException("未找到用户名为 " + identifier + " 的用户");
             }
 
-            Authentication authentication = authenticationManager.authenticate(
+
+
+            Authentication authentication =
                     new UsernamePasswordAuthenticationToken(
                             user.getUsername(),
                             request.password()
-                    )
-            );
+                    );
             
             // 加载用户角色和权限
             loadUserRoles(user);
+
+
             
             // 创建认证对象
             List<SimpleGrantedAuthority> authorities = user.getRoles().stream()
-                    .map(role -> new SimpleGrantedAuthority("ROLE_" + role.getName()))
+                    .map(role -> new SimpleGrantedAuthority(role.getName()))
                     .collect(Collectors.toList());
             
             Authentication userAuth = new UsernamePasswordAuthenticationToken(
@@ -234,7 +247,7 @@ public class UserServiceImpl implements UserService {
         // 验证令牌有效性
         if (jwtService.validateToken(request.refreshToken())) {
             // 验证用户
-            User user = findByEmail(request.email());
+            User user = findByEmail(request.user());
             
             // 创建认证对象
             List<SimpleGrantedAuthority> authorities = user.getRoles().stream()
@@ -265,7 +278,7 @@ public class UserServiceImpl implements UserService {
             // 清除安全上下文
             SecurityContextHolder.clearContext();
 
-            logger.info("用户 {} 已注销", request.email());
+            logger.info("用户 {} 已注销", request.user());
         } catch (Exception e) {
             logger.error("注销过程中发生错误: ", e);
             throw new RuntimeException("注销失败", e);
@@ -389,41 +402,59 @@ public class UserServiceImpl implements UserService {
     @Override
     public LoginResponse login(LoginRequest request) {
         try {
-            // 创建认证请求
-            AuthenticationRequest authRequest = new AuthenticationRequest(
-                    request.getUsername(), request.getPassword());
-            
-            // 使用authenticate方法进行认证
-            AuthenticationResponse authResponse = authenticate(authRequest);
-            
-            if (authResponse != null && authResponse.token() != null) {
-                // 从安全上下文获取认证信息
-                Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-                
-                // 返回成功响应
-                return new LoginResponse(
-                        true,
-                        "登录成功",
-                        authResponse.token(),
-                        authentication.getName(),
-                        authentication.getAuthorities()
-                );
-            } else {
-                // 认证失败
-                return new LoginResponse(
-                        false,
-                        "认证失败",
-                        null,
-                        null,
-                        null
-                );
+            String identifier = request.getUsername();
+            User user = userMapper.findByUsername(identifier);
+
+            if (user == null) {
+                throw new UserNotFoundException("未找到用户名为 " + identifier + " 的用户");
             }
-        } catch (Exception e) {
-            logger.error("登录失败: {}", e.getMessage());
-            // 认证失败
+
+            // 验证密码
+            if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+                throw new BadCredentialsException("密码不正确");
+            }
+
+            // 加载用户角色和权限
+            UserDetails userDetails = userService.loadUserByUsername( identifier);
+
+            Collection<? extends GrantedAuthority> authorities = userDetails.getAuthorities();
+            Authentication userAuth = new UsernamePasswordAuthenticationToken(
+                    user.getUsername(), null, authorities);
+
+            // 生成JWT令牌
+            String jwtToken = jwtService.generateToken(userAuth);
+
+            // 返回成功响应
+            return new LoginResponse(
+                    true,
+                    "登录成功",
+                    jwtToken,
+                    user.getUsername(),
+                    authorities
+            );
+        } catch (UserNotFoundException e) {
+            logger.error("登录失败，用户不存在: {}", e.getMessage());
             return new LoginResponse(
                     false,
-                    "用户名或密码不正确: " + e.getMessage(),
+                    "用户名不存在",
+                    null,
+                    null,
+                    null
+            );
+        } catch (BadCredentialsException e) {
+            logger.error("登录失败，密码错误: {}", e.getMessage());
+            return new LoginResponse(
+                    false,
+                    "密码不正确",
+                    null,
+                    null,
+                    null
+            );
+        } catch (Exception e) {
+            logger.error("登录失败: {}", e.getMessage(), e);
+            return new LoginResponse(
+                    false,
+                    "登录失败: " + e.getMessage(),
                     null,
                     null,
                     null

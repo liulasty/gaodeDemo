@@ -3,16 +3,22 @@ package com.example.demo.service.impl;
 import com.example.demo.service.JwtService;
 import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.SecurityContext;
+import com.sun.security.auth.UserPrincipal;
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtParser;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.oauth2.jwt.*;
 import org.springframework.stereotype.Service;
@@ -31,12 +37,8 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class JwtServiceImpl implements JwtService {
-
-    // JWT签名密钥(Base64编码)
-    @Value("${jwt.secret}")
-    private String secretKey;
-
     // JWT有效期(毫秒)
     @Value("${jwt.expiration}")
     private Long expiration;
@@ -92,16 +94,20 @@ public class JwtServiceImpl implements JwtService {
     @Override
     public String generateToken(String userId, Collection<? extends GrantedAuthority> authorities, Map<String, Object> extraClaims) {
         JwtEncoder encoder = new NimbusJwtEncoder(jwkSource);
-        List<String> roles = authorities.stream().map(GrantedAuthority::getAuthority).collect(Collectors.toList());
+        List<String> roles = authorities.stream()
+                .map(GrantedAuthority::getAuthority)
+                .collect(Collectors.toList());
+
         JwtClaimsSet.Builder claimsBuilder = JwtClaimsSet.builder()
                 .subject(userId)
                 .issuedAt(Instant.now())
                 .expiresAt(Instant.now().plus(expiration, ChronoUnit.MILLIS))
-                .claim("scope", String.join(" ", roles))
                 .claim("roles", roles);
+
         extraClaims.forEach(claimsBuilder::claim);
         return encoder.encode(JwtEncoderParameters.from(claimsBuilder.build())).getTokenValue();
     }
+
 
     /**
      * 从JWT令牌中提取用户ID
@@ -136,23 +142,7 @@ public class JwtServiceImpl implements JwtService {
         }
     }
 
-    // 提取自定义claim的通用方法
-    public <T> T extractClaim(String token, String claimName, Class<T> clazz) {
-        Jwt jwt = jwtDecoder.decode(token);
-        Object claim = jwt.getClaim(claimName);
-        return clazz.cast(claim);
-    }
 
-    /**
-     * 获取签名密钥
-     * @return 用于签名的SecretKey对象
-     */
-    private SecretKey getSigningKey() {
-        byte[] keyBytes = Decoders.BASE64.decode(secretKey);
-        return Keys.hmacShaKeyFor(keyBytes);
-    }
-
-    // 新增方法：确定OAuth2提供者
     private String determineProvider(Map<String, Object> attributes) {
         if (attributes.containsKey("github_id")) {
             return "github";
@@ -160,5 +150,18 @@ public class JwtServiceImpl implements JwtService {
             return "google";
         }
         return "unknown";
+    }
+    @Override
+    public Authentication getAuthentication(String token) {
+        Jwt jwt = jwtDecoder.decode(token);
+
+        Collection<? extends GrantedAuthority> authorities =
+                ((List<?>) jwt.getClaim("roles")).stream()
+                        .map(authority -> new SimpleGrantedAuthority(authority.toString()))
+                        .collect(Collectors.toList());
+        String subject = jwt.getSubject();
+        UserPrincipal principal = new UserPrincipal(subject);
+
+        return new UsernamePasswordAuthenticationToken(principal, token, authorities);
     }
 }

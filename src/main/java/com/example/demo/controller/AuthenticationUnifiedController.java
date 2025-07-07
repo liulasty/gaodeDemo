@@ -16,6 +16,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -27,7 +28,11 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import com.example.demo.dto.CommonResponse;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -51,20 +56,20 @@ public class AuthenticationUnifiedController {
     private final AuthenticationManager authenticationManager;
     private final ClientRegistrationRepository clientRegistrationRepository;
     private final UserContext userContext;
-    private final PermissionService permissionService;
-    private final PermissionRefreshService permissionRefreshService;
+    private final ApplicationContext applicationContext;
+    private final UserDetailsService userDetailsService;
 
     /**
      * 用户注册接口
      */
     @PostMapping("/register")
-    public ResponseEntity<RegisterResponse> register(@Valid @RequestBody RegisterRequest request) {
+    public CommonResponse<RegisterResponse> register(@Valid @RequestBody RegisterRequest request) {
         RegisterResponse response = userService.register(request);
         
         if (response.isSuccess()) {
-            return ResponseEntity.ok(response);
+            return new CommonResponse<>(200, "注册成功", response);
         } else {
-            return ResponseEntity.badRequest().body(response);
+            return new CommonResponse<>(400, "注册失败", response);
         }
     }
 
@@ -72,22 +77,21 @@ public class AuthenticationUnifiedController {
      * 用户登录接口
      */
     @PostMapping("/login")
-    public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest loginRequest) {
+    public CommonResponse<LoginResponse> login(@RequestBody LoginRequest loginRequest) {
         // 直接调用 userService.login 方法
         LoginResponse response = userService.login(loginRequest);
         
         if (response.isSuccess()) {
-            return ResponseEntity.ok(response);
+            return new CommonResponse<>(200, "登录成功", response);
         } else {
-            return ResponseEntity.status(401).body(response);
+            return new CommonResponse<>(401, "登录失败", response);
         }
     }
 
-    @Autowired
-    private ApplicationContext applicationContext;
+
 
     @PostMapping("/refresh-permissions")
-    public String refreshPermissions() {
+    public CommonResponse<String> refreshPermissions() {
 
         DefaultListableBeanFactory beanFactory = (DefaultListableBeanFactory)
                 applicationContext.getAutowireCapableBeanFactory();
@@ -96,53 +100,54 @@ public class AuthenticationUnifiedController {
 
         applicationContext.getBean(SecurityFilterChain.class);
 
-        return "权限规则已刷新！";
+        return new CommonResponse<>(200, "权限规则已刷新！", "权限规则已刷新！");
     }
 
     /**
      * 登出接口
      */
     @PostMapping("/logout")
-    public ResponseEntity<String> logout(@RequestBody AuthenticationRequest request) {
+    public CommonResponse<String> logout(@RequestBody AuthenticationRequest request) {
         userService.logout(request);
-        return ResponseEntity.ok("登出成功");
+        return new CommonResponse<>(200, "登出成功", "登出成功");
     }
 
     /**
      * 刷新令牌接口
      */
     @PostMapping("/refresh-token")
-    public ResponseEntity<AuthenticationResponse> refreshToken(
+    public CommonResponse<AuthenticationResponse> refreshToken(
             @RequestBody AuthenticationRequest request
     ) {
-        return ResponseEntity.ok(userService.refreshToken(request));
+        AuthenticationResponse response = userService.refreshToken(request);
+        return new CommonResponse<>(200, "刷新令牌成功", response);
     }
 
     /**
      * 获取OAuth2认证用户信息
      */
     @GetMapping("/oauth2-user")
-    public ResponseEntity<Map<String, Object>> getOAuth2User(@AuthenticationPrincipal OAuth2User principal) {
+    public CommonResponse<Map<String, Object>> getOAuth2User(@AuthenticationPrincipal OAuth2User principal) {
         if (principal == null) {
             Jwt o = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
             log.info("o: {}", o.getClaims());
-            return ResponseEntity.ok(Map.of("authenticated", false));
+            return new CommonResponse<>(401, "未认证", Map.of("authenticated", false));
         }
 
         Map<String, Object> response = new HashMap<>();
         response.put("authenticated", true);
         response.put("name", principal.getAttribute("name"));
-        response.put("email", principal.getAttribute("email"));
+        response.put("email", principal.getAttribute("user"));
         response.put("provider", principal.getAttribute("provider"));
         
-        return ResponseEntity.ok(response);
+        return new CommonResponse<>(200, "获取OAuth2用户信息成功", response);
     }
 
     /**
      * 获取可用的OAuth2认证提供商列表
      */
     @GetMapping("/providers")
-    public ResponseEntity<Map<String, String>> getOAuth2Providers() {
+    public CommonResponse<Map<String, String>> getOAuth2Providers() {
         Map<String, String> providers = new HashMap<>();
         
         if (clientRegistrationRepository.findByRegistrationId("github") != null) {
@@ -152,80 +157,59 @@ public class AuthenticationUnifiedController {
             providers.put("google", "/oauth2/authorization/google");
         }
         
-        return ResponseEntity.ok(providers);
+        return new CommonResponse<>(200, "获取OAuth2认证提供商成功", providers);
     }
 
     /**
      * 从认证对象生成JWT令牌
      */
     @GetMapping("/token")
-    public ResponseEntity<Map<String, String>> getToken(Authentication authentication) {
+    public CommonResponse<Map<String, String>> getToken() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated()) {
-            return ResponseEntity.ok(Map.of("error", "未认证"));
+            return new CommonResponse<>(401, "未认证", Map.of("error", "未认证"));
         }
+
+        log.info("authentication: {}", authentication);
         
-        String token = jwtService.generateToken(authentication);
-        return ResponseEntity.ok(Map.of("token", token));
+        // 从 UserDetailsService 获取原始用户权限
+        UserDetails userDetails = userDetailsService.loadUserByUsername(authentication.getName());
+        String token = jwtService.generateToken(userDetails.getUsername(), userDetails.getAuthorities());
+        return new CommonResponse<>(200, "获取token成功", Map.of("token", token));
     }
 
     /**
      * 检查邮箱是否已被注册
      */
     @GetMapping("/check-email")
-    public ResponseEntity<Map<String, Object>> checkEmail(@RequestParam String email) {
+    public CommonResponse<Map<String, Object>> checkEmail(@RequestParam String email) {
         boolean exists = userService.isEmailExists(email);
-        return ResponseEntity.ok(Map.of(
-                "email", email,
+        return new CommonResponse<>(200, "查询邮箱成功", Map.of(
+                "user", email,
                 "exists", exists
         ));
     }
 
     /**
-     * 获取当前登录用户信息 - 方式1: 使用Authentication参数
+     * 获取当前登录用户信息
      */
     @GetMapping("/user-info")
-    public ResponseEntity<Map<String, Object>> getCurrentUserInfo(Authentication authentication) {
+    public CommonResponse<Map<String, Object>> getCurrentUserInfo(Authentication authentication) {
         if (authentication == null || !authentication.isAuthenticated()) {
-            return ResponseEntity.ok(Map.of("authenticated", false));
+            return new CommonResponse<>(401, "未认证", Map.of("authenticated", false));
         }
-        
+
+        Collection<? extends GrantedAuthority> authorities = authentication.getAuthorities();
+
         Map<String, Object> userInfo = new HashMap<>();
         userInfo.put("authenticated", true);
         userInfo.put("username", authentication.getName());
-        userInfo.put("authorities", authentication.getAuthorities().stream()
-                .map(authority -> authority.getAuthority())
+        userInfo.put("authorities", authorities.stream()
+                .map(GrantedAuthority::getAuthority)
                 .collect(Collectors.toList()));
         
-        return ResponseEntity.ok(userInfo);
-    }
 
-    /**
-     * 显示登录页面
-     */
-    @GetMapping("/login")
-    public String showLoginPage(@RequestParam(value = "error", required = false) String error, Model model) {
-        if (error != null) {
-            model.addAttribute("loginError", true);
-        }
-        return "login";
-    }
-
-    /**
-     * 显示注册页面
-     */
-    @GetMapping("/register")
-    public String showRegisterPage() {
-        return "register";
-    }
-
-    /**
-     * 主页重定向
-     */
-    @GetMapping("/")
-    public String home(Authentication authentication) {
-        if (authentication != null && authentication.isAuthenticated()) {
-            return "redirect:/api/auth/user-info";
-        }
-        return "redirect:/login";
+        
+        return new CommonResponse<>(200, "获取当前用户信息成功", userInfo);
     }
 }

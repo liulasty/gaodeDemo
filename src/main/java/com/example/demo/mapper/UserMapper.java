@@ -18,7 +18,7 @@ public interface UserMapper extends BaseMapper<User> {
      * 
      * @param email 用户的电子邮件地址，不能为空且需符合邮箱格式。
      * @return 包含用户信息的 ScopedValue<User> 对象，如果未找到则返回空值。
-     * @throws IllegalArgumentException 如果传入的 email 参数为空或格式不正确。
+     * @throws IllegalArgumentException 如果传入的 user 参数为空或格式不正确。
      */
     @Select("SELECT * FROM t_sys_user WHERE email = #{email}")
     User findByEmail(String email);

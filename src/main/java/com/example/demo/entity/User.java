@@ -30,7 +30,7 @@ public class User implements UserDetails {
     @TableField("username")
     private String username;
 
-    @TableField("email")
+    @TableField("user")
     private String email;
 
     @TableField("password")

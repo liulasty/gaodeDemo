@@ -1,5 +1,6 @@
 package com.example.demo.handler;
 
+import com.example.demo.dto.CommonResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -15,14 +16,12 @@ import java.util.Collections;
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(RuntimeException.class)
-    public ResponseEntity<?> handleRuntimeException(RuntimeException e) {
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(Collections.singletonMap("error", e.getMessage()));
+    public CommonResponse<?> handleRuntimeException(RuntimeException e) {
+        return new CommonResponse<>(HttpStatus.INTERNAL_SERVER_ERROR.value(), "服务器内部错误", null);
     }
 
     @ExceptionHandler(WebClientResponseException.class)
-    public ResponseEntity<?> handleWebClientException(WebClientResponseException e) {
-        return ResponseEntity.status(e.getStatusCode())
-                .body(Collections.singletonMap("error", "高德API调用失败: " + e.getMessage()));
+    public CommonResponse<?> handleWebClientException(WebClientResponseException e) {
+        return new CommonResponse<>(e.getStatusCode().value(), e.getResponseBodyAsString(), Collections.emptyMap());
     }
 }

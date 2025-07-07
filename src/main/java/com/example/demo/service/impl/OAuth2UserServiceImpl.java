@@ -98,20 +98,22 @@ public class OAuth2UserServiceImpl implements OAuth2UserService<OAuth2UserReques
         if (email != null) {
             user = userMapper.findByEmail(email);
         }
-        
-        // 如果用户不存在，创建新用户
+        // 如果email查不到，再用username查找
+        if (user == null && username != null) {
+            user = userMapper.findByUsername(username);
+        }
+        // 如果都查不到，才新建用户
         if (user == null) {
-            // 创建新用户
             user = User.builder()
-                    .username( username)
+                    .username(username)
                     .email(email)
                     .status(1)
+                    .password(java.util.UUID.randomUUID().toString())
                     .createdAt(LocalDateTime.now())
                     .updatedAt(LocalDateTime.now())
                     .build();
-            
             userMapper.insert(user);
-            
+
             // 分配默认角色
             Role userRole = roleMapper.findByName("USER");
             if (userRole != null) {
@@ -120,15 +122,12 @@ public class OAuth2UserServiceImpl implements OAuth2UserService<OAuth2UserReques
                 sysUserRole.setRoleId(userRole.getId());
                 sysUserRole.setCreatedAt(LocalDateTime.now());
                 sysUserRoleMapper.insert(sysUserRole);
-                
-                // 设置角色
+
                 user.setRoles(Collections.singletonList(userRole));
             }
         }
-        
         // 加载用户角色
         loadUserRoles(user);
-        
         return user;
     }
     
@@ -137,9 +136,9 @@ public class OAuth2UserServiceImpl implements OAuth2UserService<OAuth2UserReques
      */
     private String extractEmail(String provider, Map<String, Object> attributes) {
         if ("github".equals(provider)) {
-            return (String) attributes.get("email");
+            return (String) attributes.get("user");
         } else if ("google".equals(provider)) {
-            return (String) attributes.get("email");
+            return (String) attributes.get("user");
         }
         return null;
     }

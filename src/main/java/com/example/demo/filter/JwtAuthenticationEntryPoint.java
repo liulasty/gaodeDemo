@@ -5,9 +5,13 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.stereotype.Component;
 
+import com.example.demo.dto.CommonResponse;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.Optional;
 
 /**
  * JWT 身份验证入口点
@@ -19,6 +23,9 @@ import java.io.IOException;
 @Component
 public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
 
+    private static final String ORIGINAL_REQUEST_URI_ATTRIBUTE =
+            "jakarta.servlet.error.request_uri";
+
     @Override
     public void commence(
             HttpServletRequest request,
@@ -26,34 +33,38 @@ public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
             AuthenticationException authException
     ) throws IOException {
         try {
-            // 设置响应状态码和内容类型，并指定字符编码
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.setContentType("application/json;charset=UTF-8");
-    
-            // 提取异常信息并进行处理
-            String errorMessage = "未授权";
-            String detailedMessage = (authException != null && authException.getMessage() != null)
-                    ? authException.getMessage()
-                    : "无法获取详细信息";
-            String url = request.getRequestURI();
-            
-            
-            // 构建JSON响应体
-            String jsonResponse = String.format(
-                    "{ \"error\": \"%s\", \"message\": \"%s\", \"url\": \"%s\" }",
-                    escapeJsonString(errorMessage),
-                    escapeJsonString(detailedMessage),
-                    escapeJsonString(url)
+
+            // 获取原始请求路径（优先从错误属性中获取）
+            String path = Optional.ofNullable(request.getAttribute(ORIGINAL_REQUEST_URI_ATTRIBUTE))
+                    .map(Object::toString)
+                    .orElseGet(request::getRequestURI);
+
+            // 构建响应数据
+            CommonResponse<Object> responseBody = new CommonResponse<>(
+                    401,
+                    "未授权: " + getExceptionMessage(authException),
+                    path
             );
-    
-            // 写入响应体
-            response.getWriter().write(jsonResponse);
-    
+
+            // 序列化响应
+            new ObjectMapper().writeValue(response.getWriter(), responseBody);
         } catch (IOException e) {
-            log.error("Error writing response: {}", e.getMessage(), e);
+            log.error("响应写入失败", e);
             throw e;
         }
     }
+
+    private String getExceptionMessage(AuthenticationException ex) {
+        if (ex == null || ex.getMessage() == null) {
+            return "认证失败";
+        }
+
+        // 过滤掉Spring Security默认的冗长消息
+        return ex.getMessage().replace("Full authentication is required to access this resource", "");
+    }
+
     
     /**
      * 转义JSON字符串中的特殊字符

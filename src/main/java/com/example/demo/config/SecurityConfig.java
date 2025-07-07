@@ -3,24 +3,19 @@ package com.example.demo.config;
 import com.example.demo.entity.PermissionRule;
 import com.example.demo.filter.JwtAuthenticationEntryPoint;
 import com.example.demo.filter.JwtAuthenticationFilter;
+import com.example.demo.handler.OAuth2AuthenticationSuccessHandler;
 import com.example.demo.mapper.PermissionRuleMapper;
-import com.example.demo.service.DynamicSecurityMetadataSource;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.example.demo.service.impl.OAuth2UserServiceImpl;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
-import org.springframework.security.config.Customizer;
-import org.springframework.security.config.annotation.ObjectPostProcessor;
-import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -30,10 +25,10 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationProvider;
-import org.springframework.security.web.AuthenticationEntryPoint;
+import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.access.intercept.FilterSecurityInterceptor;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.authentication.logout.LogoutHandler;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
@@ -42,7 +37,6 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-import java.security.interfaces.RSAPublicKey;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -59,20 +53,13 @@ public class SecurityConfig {
     // JWT认证过滤器
     private final JwtAuthenticationFilter jwtAuthFilter;
     private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
-    private final DynamicSecurityMetadataSource dynamicSecurityMetadataSource;
-    private final DynamicAccessDecisionManager accessDecisionManager;
     private final JwtDecoder jwtDecoder;
-    // 用户详情服务
     private final UserDetailsService userDetailsService;
     private final PermissionRuleMapper permissionRuleMapper;
-
-
+    private final OAuth2UserServiceImpl oAuth2UserService;
+    private final OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler;
     // 登出处理器
     private final LogoutHandler logoutHandler;
-
-    // JWT密钥
-    @Value("${jwt.secret}")
-    private String jwtSecret;
 
     // 定义常量，避免硬编码
     private static final String AUTH_PATH = "/api/v1/auth/**";
@@ -92,20 +79,19 @@ public class SecurityConfig {
                           UserDetailsService userDetailsService,
                           LogoutHandler logoutHandler,
                           JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint,
-                          DynamicSecurityMetadataSource dynamicSecurityMetadataSource,
                           JwtDecoder jwtDecoder,
-                          DynamicAccessDecisionManager accessDecisionManager,
-                          PermissionRuleMapper permissionRuleMapper) {
+                          PermissionRuleMapper permissionRuleMapper,
+                          OAuth2UserServiceImpl oAuth2UserService,
+                          OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler) {
         this.userDetailsService = userDetailsService;
         this.logoutHandler = logoutHandler;
         this.jwtAuthenticationEntryPoint = jwtAuthenticationEntryPoint;
-        this.dynamicSecurityMetadataSource = dynamicSecurityMetadataSource;
-        this.accessDecisionManager = accessDecisionManager;
         this.jwtAuthFilter = jwtAuthFilter;
         this.jwtDecoder = jwtDecoder;
         this.permissionRuleMapper = permissionRuleMapper;
+        this.oAuth2UserService = oAuth2UserService;
+        this.oAuth2AuthenticationSuccessHandler = oAuth2AuthenticationSuccessHandler;
     }
-
 
 
     @Bean
@@ -117,16 +103,15 @@ public class SecurityConfig {
                                 "/oauth2/**" // OAuth2回调不需要CSRF保护
                         )
                 )
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 // 授权配置
                 .authorizeHttpRequests(auth -> {
-                    List<PermissionRule> rules = permissionRuleMapper.findAllEnabledRules();
+                            List<PermissionRule> rules = permissionRuleMapper.findAllEnabledRules();
                             // 动态注册权限规则
                             rules.forEach(rule -> {
                                 RequestMatcher matcher = createRequestMatcher(rule);
                                 if (rule.isPublic()) {
                                     auth.requestMatchers(matcher).permitAll(); // 公开访问
-                                } else if (rule.getRequiredRoles() != null) {
-                                    auth.requestMatchers(matcher).hasAnyRole(rule.getRequiredRoles().split(",")); // 需特定角色
                                 } else {
                                     auth.requestMatchers(matcher).authenticated(); // 需登录但无角色要求
                                 }
@@ -137,6 +122,7 @@ public class SecurityConfig {
                             auth.requestMatchers(FAVICON_PATH).permitAll();
                             auth.requestMatchers(UPLOAD_PATH).permitAll();
                             auth.requestMatchers(SWAGGER_UI_HTM_PATH).permitAll();
+                            auth.requestMatchers("/api/auth/**").permitAll();
                             auth.anyRequest().authenticated();
                         }
                 )
@@ -144,30 +130,24 @@ public class SecurityConfig {
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
-
-                // 认证提供者配置
+                .authenticationProvider(jwtAuthenticationProvider())
                 .authenticationProvider(daoAuthenticationProvider())
-
-
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
-
                 // 认证失败处理
                 .exceptionHandling(exception -> exception
                         .authenticationEntryPoint(jwtAuthenticationEntryPoint)
                 )
-
                 // 禁用表单登录，我们使用自定义API登录
                 .formLogin(AbstractHttpConfigurer::disable)
-
-                // OAuth2登录配置
+                // 开启OAuth2登录，配置自定义userService和successHandler
                 .oauth2Login(oauth2 -> oauth2
-                        .loginPage("/login")
-                        .defaultSuccessUrl("/", true)
+                    .userInfoEndpoint(userInfo -> userInfo
+                        .userService(oAuth2UserService)
+                    )
+                    .successHandler(oAuth2AuthenticationSuccessHandler)
                 )
-
-                // 配置OAuth2资源服务器
-                .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.decoder(jwtDecoder)))
-
+                // 禁用默认的 OAuth2 资源服务器配置
+                .oauth2ResourceServer(AbstractHttpConfigurer::disable)
                 // 登出配置
                 .logout(logout -> logout
                         .logoutUrl("/api/auth/logout")
@@ -184,7 +164,6 @@ public class SecurityConfig {
     }
 
 
-
     // 根据规则创建 RequestMatcher（支持Ant路径和HTTP方法）
     private RequestMatcher createRequestMatcher(PermissionRule rule) {
         if (rule.getHttpMethod() == null || rule.getHttpMethod().isEmpty()) {
@@ -194,11 +173,6 @@ public class SecurityConfig {
         }
     }
 
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        // 增加迭代次数以提高安全性
-        return new BCryptPasswordEncoder(12);
-    }
 
     /**
      * 配置认证管理器bean
@@ -212,9 +186,7 @@ public class SecurityConfig {
         // 创建认证提供器列表
         List<AuthenticationProvider> providers = new ArrayList<>();
         providers.add(jwtAuthenticationProvider());
-
-        // 也可以添加其他认证提供器
-        // providers.add(otherAuthenticationProvider());
+        providers.add(daoAuthenticationProvider());
 
         return new ProviderManager(providers);
     }
@@ -223,9 +195,6 @@ public class SecurityConfig {
     public JwtAuthenticationProvider jwtAuthenticationProvider() {
         return new JwtAuthenticationProvider(jwtDecoder);
     }
-
-
-
 
 
     /**
@@ -239,7 +208,7 @@ public class SecurityConfig {
         // 创建一个新的CORS配置
         CorsConfiguration configuration = new CorsConfiguration();
         // 允许来自"http://localhost:3000"的跨域请求
-        configuration.setAllowedOrigins(List.of("http://localhost:3000"));
+        configuration.setAllowedOrigins(List.of("http://localhost:5173"));
         // 允许的HTTP方法包括GET、POST、PUT、DELETE和OPTIONS
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         // 限制允许的头字段
@@ -263,5 +232,22 @@ public class SecurityConfig {
         provider.setPasswordEncoder(passwordEncoder());
         provider.setUserDetailsService(userDetailsService);
         return provider;
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        // 增加迭代次数以提高安全性
+        return new BCryptPasswordEncoder(12);
+    }
+
+    @Bean
+    public JwtAuthenticationConverter jwtAuthenticationConverter() {
+        JwtGrantedAuthoritiesConverter grantedAuthoritiesConverter = new JwtGrantedAuthoritiesConverter();
+//        grantedAuthoritiesConverter.setAuthorityPrefix("");
+//        grantedAuthoritiesConverter.setAuthoritiesClaimName("roles");
+
+        JwtAuthenticationConverter jwtAuthenticationConverter = new JwtAuthenticationConverter();
+        jwtAuthenticationConverter.setJwtGrantedAuthoritiesConverter(grantedAuthoritiesConverter);
+        return jwtAuthenticationConverter;
     }
 }

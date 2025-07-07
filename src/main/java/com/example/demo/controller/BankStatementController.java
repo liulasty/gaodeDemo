@@ -17,6 +17,7 @@ import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
+import com.example.demo.dto.CommonResponse;
 
 // BankStatementController.java
 @RestController
@@ -27,25 +28,23 @@ public class BankStatementController {
     private final PdfParserService pdfParserService;
 
     @PostMapping("/upload")
-    public ResponseEntity<BankStatement> uploadStatement(
-            @RequestParam("file") MultipartFile file) {
+    public CommonResponse<BankStatement> uploadStatement(@RequestParam("file") MultipartFile file) {
         try {
             BankStatement statement = pdfParserService.parseBankStatement(file.getInputStream());
-            return ResponseEntity.ok(statement);
+            return new CommonResponse<>(200, "上传成功", statement);
         } catch (IOException e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            return new CommonResponse<>(500, "上传失败: " + e.getMessage(), null);
         }
     }
 
     @PostMapping("/analyze")
-    public ResponseEntity<Map<String, Object>> analyzeStatement(
-            @RequestParam("file") MultipartFile file) {
+    public CommonResponse<Map<String, Object>> analyzeStatement(@RequestParam("file") MultipartFile file) {
         try {
             BankStatement statement = pdfParserService.parseBankStatement(file.getInputStream());
             Map<String, Object> analysis = analyzeTransactions(statement);
-            return ResponseEntity.ok(analysis);
+            return new CommonResponse<>(200, "分析成功", analysis);
         } catch (IOException e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            return new CommonResponse<>(500, "分析失败: " + e.getMessage(), null);
         }
     }
 

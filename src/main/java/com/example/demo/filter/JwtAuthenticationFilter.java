@@ -13,10 +13,13 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtException;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.util.AntPathMatcher;
@@ -39,6 +42,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final UserDetailsService userDetailsService;
+    private final JwtDecoder jwtDecoder;
 
     @Override
     protected void doFilterInternal(
@@ -85,14 +89,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             // 5. 如果用户名不为空且当前上下文没有认证信息
             if (SecurityContextHolder.getContext().getAuthentication() == null) {
-                // 6. 从数据库加载用户详情
-                UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+                Authentication authentication = jwtService.getAuthentication(jwt);
 
-                // 7. 创建认证令牌
-                UsernamePasswordAuthenticationToken authToken = createAuthenticationToken(userDetails, request);
-
+                
                 // 8. 更新安全上下文
-                SecurityContextHolder.getContext().setAuthentication(authToken);
+                SecurityContextHolder.getContext().setAuthentication(authentication);
+                
+                // 记录实际设置的权限
+                authentication.getAuthorities().forEach(grantedAuthority -> 
+                    log.info("Set authority: {}", grantedAuthority.getAuthority()));
             }
 
             // 9. 继续过滤器链
@@ -116,7 +121,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 "/api/auth/refresh-token",
                 "/api/auth/logout",
                 "/api/auth/register",
-                "/api/geocode/address",
+                "/api/auth/providers",
                 "/api/geocode/ip",
                 "/swagger-ui.html",
                 "/v3/api-docs",
@@ -153,16 +158,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         return username;
     }
 
-    // 创建认证令牌
-    private UsernamePasswordAuthenticationToken createAuthenticationToken(UserDetails userDetails, HttpServletRequest request) {
-        UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                userDetails,
-                null,
-                userDetails.getAuthorities()
-        );
-        authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-        return authToken;
-    }
+
 
     // 继续过滤器链
     private void continueFilterChain(FilterChain filterChain, HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {

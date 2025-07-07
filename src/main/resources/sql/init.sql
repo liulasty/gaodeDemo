@@ -216,7 +216,7 @@ VALUES
     ('/api/auth/register', 'POST', NULL, 1, 1),
     ('/api/auth/login', 'POST', NULL, 1, 1),
     ('/api/auth/refresh-token', 'POST', NULL, 1, 1),
-    ('/api/auth/check-email', 'GET', NULL, 1, 1);
+    ('/api/auth/check-user', 'GET', NULL, 1, 1);
 
 -- 插入需要认证的接口
 INSERT INTO sys_permission_rule (pattern, http_method, required_roles, is_public, enabled)

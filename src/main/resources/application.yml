@@ -33,8 +33,8 @@ spring:
       client:
         registration:
           github:
-            client-id: ${GITHUB_CLIENT_ID:your-github-client-id}
-            client-secret: ${GITHUB_CLIENT_SECRET:your-github-client-secret}
+            client-id: ${GITHUB_CLIENT_ID:Ov23liyVfRNTV8m1IyjF}
+            client-secret: ${GITHUB_CLIENT_SECRET:c465e7b15d0e2935c2067c99a06e890f8ef430c4}
             scope: user:email,read:user
           google:
             client-id: ${GOOGLE_CLIENT_ID:your-google-client-id}
@@ -76,7 +76,7 @@ file:
 mybatis-plus:
   configuration:
     # 控制台打印 SQL 日志（可选）
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+#    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
     # 开启下划线转驼峰
     map-underscore-to-camel-case: true
     # 启用二级缓存
@@ -129,9 +129,10 @@ tesseract:
 logging:
   level:
     root: INFO
-    org.springframework.security: info
+    org.springframework.security: DEBUG
     org.springframework.security.oauth2: DEBUG
     org.springframework.security.oauth2.jwt: TRACE  # 添加JWT处理的详细日志
+    com.example.demo.filter.JwtAuthenticationFilter: DEBUG
 
 # OAuth2初始化配置
 oauth2:

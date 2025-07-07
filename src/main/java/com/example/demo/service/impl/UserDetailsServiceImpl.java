@@ -5,6 +5,7 @@ import com.example.demo.mapper.RoleMapper;
 import com.example.demo.mapper.UserMapper;
 import com.example.demo.service.UserService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -24,41 +25,12 @@ import java.util.Map;
  * @author Administrator
  */
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class UserDetailsServiceImpl implements UserDetailsService {
 
     private final UserMapper userMapper;
     private final RoleMapper roleMapper;
-
-//    // 使用内存中的用户映射表进行测试
-//    private static final Map<String, UserDetails> USERS_MAP = new HashMap<>();
-//
-//    static {
-//        // 初始化测试用户
-//        // 生产环境中应从数据库中加载用户并使用加密密码
-//        List<SimpleGrantedAuthority> userAuthorities = new ArrayList<>();
-//        userAuthorities.add(new SimpleGrantedAuthority("ROLE_USER"));
-//
-//        List<SimpleGrantedAuthority> adminAuthorities = new ArrayList<>();
-//        adminAuthorities.add(new SimpleGrantedAuthority("ROLE_USER"));
-//        adminAuthorities.add(new SimpleGrantedAuthority("ROLE_ADMIN"));
-//
-//        // 添加普通用户
-//        USERS_MAP.put("user", new User(
-//                "user",
-//                "{noop}password", // {noop}表示不加密的密码
-//                true, true, true, true,
-//                userAuthorities
-//        ));
-//
-//        // 添加管理员
-//        USERS_MAP.put("admin", new User(
-//                "admin",
-//                "{noop}admin", // {noop}表示不加密的密码
-//                true, true, true, true,
-//                adminAuthorities
-//        ));
-//    }
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
@@ -74,11 +46,10 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         List<SimpleGrantedAuthority> authorities = new ArrayList<>();
         if (!roles.isEmpty()) {
             roles.forEach(role ->
-                    authorities.add(new SimpleGrantedAuthority("ROLE_" + role.getName()))
+                    authorities.add(new SimpleGrantedAuthority(role.getName()))  // 直接使用角色名，不添加前缀
             );
         }
-
-        return new User(
+        User user = new User(
                 userEntity.getUsername(),
                 userEntity.getPassword(),
                 userEntity.isEnabled(),
@@ -87,5 +58,8 @@ public class UserDetailsServiceImpl implements UserDetailsService {
                 userEntity.isAccountNonLocked(),
                 authorities
         );
+        log.info("用户: {}", user);
+
+        return user;
     }
 } 

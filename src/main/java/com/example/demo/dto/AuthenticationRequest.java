@@ -1,24 +1,22 @@
 package com.example.demo.dto;
 
-import java.util.Objects;
-
 /**
  * 表示身份验证请求的记录类。
  * 包含用户的电子邮件和密码。
  * @author lz
  */
-public record AuthenticationRequest(String email, String password) {
+public record AuthenticationRequest(String user, String password) {
 
     /**
-     * 构造函数，确保 email 和 password 不为 null。
+     * 构造函数，确保 user 和 password 不为 null。
      *
-     * @param email    用户的电子邮件地址
+     * @param user    用户的电子邮件地址
      * @param password 用户的密码
-     * @throws IllegalArgumentException 如果 email 或 password 为 null
+     * @throws IllegalArgumentException 如果 user 或 password 为 null
      */
     public AuthenticationRequest {
-        if (email == null || password == null) {
-            throw new IllegalArgumentException("Email and password must not be null");
+        if (user == null || password == null) {
+            throw new IllegalArgumentException("user and password must not be null");
         }
     }
 
@@ -40,6 +38,6 @@ public record AuthenticationRequest(String email, String password) {
      */
     @Override
     public String toString() {
-        return "AuthenticationRequest[email=" + email + ", password=******]";
+        return "AuthenticationRequest[user=" + user + ", password=******]";
     }
 }

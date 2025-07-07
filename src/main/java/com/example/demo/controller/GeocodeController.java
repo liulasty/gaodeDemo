@@ -3,6 +3,7 @@ package com.example.demo.controller;
 import com.example.demo.dto.AMapIpGeolocationResponse;
 import com.example.demo.dto.AMapReverseGeocodeResponse;
 import com.example.demo.dto.GeocodeResponse;
+import com.example.demo.dto.CommonResponse;
 import com.example.demo.service.AMapGeocodeService;
 import com.example.demo.service.AMapIpGeolocationService;
 import com.example.demo.service.GeoLocationService;
@@ -31,7 +32,7 @@ public class GeocodeController {
     private final AMapIpGeolocationService aMapIpGeolocationService;
 
     @GetMapping("/reverse")
-    public ResponseEntity<?> reverseGeocode(
+    public CommonResponse<AMapReverseGeocodeResponse> reverseGeocode(
             @RequestParam double longitude,
             @RequestParam double latitude) {
 
@@ -42,22 +43,19 @@ public class GeocodeController {
 
             if (response == null) {
                 log.error("Geocoding service returned null response");
-                return createErrorResponse(HttpStatus.SERVICE_UNAVAILABLE,
-                        "Geocoding service unavailable");
+                return new CommonResponse<>(503, "Geocoding service unavailable", null);
             }
 
             if (!"1".equals(response.getStatus())) {
                 log.warn("Geocoding service returned error status: {}", response.getInfo());
-                return createErrorResponse(HttpStatus.BAD_GATEWAY,
-                        "Geocoding service error: " + response.getInfo());
+                return new CommonResponse<>(502, "Geocoding service error: " + response.getInfo(), response);
             }
 
-            return ResponseEntity.ok(response);
+            return new CommonResponse<>(200, "逆地理编码成功", response);
 
         } catch (Exception e) {
             log.error("Geocoding request failed", e);
-            return createErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR,
-                    "Internal server error");
+            return new CommonResponse<>(500, "Internal server error", null);
         }
     }
 
@@ -69,7 +67,7 @@ public class GeocodeController {
     }
 
     @GetMapping("/address")
-    public ResponseEntity<?> getAddress(
+    public CommonResponse<GeocodeResponse> getAddress(
             @RequestParam double longitude,
             @RequestParam double latitude) {
 
@@ -78,13 +76,12 @@ public class GeocodeController {
         try {
             GeocodeResponse address = geocodeService.getFormattedAddress(longitude, latitude);
             if (address == null) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(createErrorResponse("Address not found"));
+                return new CommonResponse<>(404, "Address not found", null);
             }
-            return ResponseEntity.ok(createSuccessResponse("address", address));
+            return new CommonResponse<>(200, "获取地址成功", address);
         } catch (Exception e) {
             logError(e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(createErrorResponse("Internal server error"));
+            return new CommonResponse<>(500, "Internal server error", null);
         }
     }
 
@@ -108,14 +105,14 @@ public class GeocodeController {
     }
 
     @GetMapping("/ip")
-    public ResponseEntity<?> getLocationByIp(@RequestParam String ip) {
+    public CommonResponse<String> getLocationByIp(@RequestParam String ip) {
 
         String response = aMapIpGeolocationService.getCityByIp(ip);
 
         if (response != null) {
-            return ResponseEntity.ok(response);
+            return new CommonResponse<>(200, "获取IP定位成功", response);
         } else {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("IP not found");
+            return new CommonResponse<>(404, "IP not found", null);
         }
 
 
@@ -125,7 +122,12 @@ public class GeocodeController {
      * 获取IP地址对应的地理位置
      */
     @GetMapping("/fullLocation")
-    public String getFullLocationByIp(String ip) {
-        return aMapIpGeolocationService.getFullLocationByIp(ip);
+    public CommonResponse<String> getFullLocationByIp(String ip) {
+        String result = aMapIpGeolocationService.getFullLocationByIp(ip);
+        if (result != null && !result.isEmpty()) {
+            return new CommonResponse<>(200, "获取完整IP定位成功", result);
+        } else {
+            return new CommonResponse<>(404, "未找到完整IP定位", null);
+        }
     }
 }

@@ -53,4 +53,6 @@ public interface JwtService {
      * @return 是否有效
      */
     boolean validateToken(String token);
+
+    public Authentication getAuthentication(String token);
 } 
