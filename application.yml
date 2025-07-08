@@ -1,4 +1,0 @@
-jwt:
-  secret: ${JWT_SECRET:nh2309y5bh2kl5jbh43kj5h2kj4h5kj2h45j2h45jk2h45kj2h45kj2h45k24jhg5jkh}
-  expiration: 86400000  # 一天
-  refresh-expiration: 604800000  # 一周
