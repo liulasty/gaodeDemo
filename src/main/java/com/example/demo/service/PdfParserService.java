@@ -40,6 +40,7 @@ public class PdfParserService {
      *
      * @throws IOException io异常
      */
+    @Transactional(rollbackFor = Exception.class)
     public BankStatement parseBankStatement(InputStream pdfStream) throws IOException {
         BankStatement statement = new BankStatement();
         List<Transaction> transactions = new ArrayList<>();
@@ -69,7 +70,7 @@ public class PdfParserService {
         return statement;
     }
 
-    @Transactional(rollbackFor = Exception.class)
+
     public void saveBankStatement(BankStatement bankStatement) {
         // 保存主表信息
         bankStatementMapper.insert(bankStatement);

@@ -1,5 +1,7 @@
 package com.example.demo.service.impl;
 
+import cn.hutool.core.util.StrUtil;
+import com.alibaba.fastjson.JSON;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.example.demo.dto.AuthenticationRequest;
 import com.example.demo.dto.AuthenticationResponse;
@@ -18,10 +20,12 @@ import com.example.demo.mapper.SysUserRoleMapper;
 import com.example.demo.mapper.UserMapper;
 import com.example.demo.service.UserService;
 import com.example.demo.service.JwtService;
+import com.oracle.truffle.js.builtins.JSONBuiltins;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -44,6 +48,7 @@ import java.util.stream.Collectors;
 
 /**
  * 用户服务实现类
+ * @author Administrator
  */
 @Slf4j
 @Service
@@ -57,8 +62,7 @@ public class UserServiceImpl implements UserService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final UserDetailsService userService;
-    private final AuthenticationManager authenticationManager;
-    private final Logger logger = LoggerFactory.getLogger(UserServiceImpl.class);
+    private final RedisTemplate<String, Object> redisTemplate;
     
     /**
      * 实现注册新用户方法
@@ -153,7 +157,7 @@ public class UserServiceImpl implements UserService {
                 List<Permission> permissions = permissionMapper.findPermissionsByUserId(user.getId().longValue());
                 user.setPermissions(permissions);
             }else {
-                logger.error("未找到用户角色");
+                log.error("未找到用户角色");
                 throw new RuntimeException("未找到用户角色");
             }
             
@@ -166,6 +170,8 @@ public class UserServiceImpl implements UserService {
             
             // 生成JWT令牌
             String token = jwtService.generateToken(authentication);
+
+            redisTemplate.opsForValue().set("user", authentication);
             
             // 返回注册成功响应
             return RegisterResponse.builder()
@@ -177,7 +183,7 @@ public class UserServiceImpl implements UserService {
                     .token(token)
                     .build();
         } catch (Exception e) {
-            logger.error("注册失败,"+e.getMessage(), e);
+            log.error("注册失败,"+e.getMessage(), e);
             throw new RuntimeException("注册失败,"+e.getMessage(), e);
         }
     }
@@ -228,10 +234,10 @@ public class UserServiceImpl implements UserService {
             return new AuthenticationResponse(jwtToken);
 
         } catch (UserNotFoundException e) {
-            logger.error("认证过程中发生错误: {}", e.getMessage());
+            log.error("邮箱 {} 认证过程中发生错误: {}", request.user(), e.getMessage());
             throw e;
         } catch (Exception e) {
-            logger.error("认证过程中发生意外错误: ", e);
+            log.error("邮箱 {} 认证过程中发生错误: ", request.user(), e);
             throw new RuntimeException("认证失败", e);
         }
     }
@@ -274,13 +280,13 @@ public class UserServiceImpl implements UserService {
     public void logout(AuthenticationRequest request) {
         try {
             // 在这里可以添加令牌黑名单等注销逻辑
-            
+            redisTemplate.delete(request.refreshToken());
             // 清除安全上下文
             SecurityContextHolder.clearContext();
 
-            logger.info("用户 {} 已注销", request.user());
+            log.info("用户 {} 已注销", request.user());
         } catch (Exception e) {
-            logger.error("注销过程中发生错误: ", e);
+            log.error("注销过程中发生错误: ", e);
             throw new RuntimeException("注销失败", e);
         }
     }
@@ -424,6 +430,8 @@ public class UserServiceImpl implements UserService {
             // 生成JWT令牌
             String jwtToken = jwtService.generateToken(userAuth);
 
+            redisTemplate.opsForValue().set("user:"+jwtToken, StrUtil.toString(userAuth));
+
             // 返回成功响应
             return new LoginResponse(
                     true,
@@ -433,7 +441,7 @@ public class UserServiceImpl implements UserService {
                     authorities
             );
         } catch (UserNotFoundException e) {
-            logger.error("登录失败，用户不存在: {}", e.getMessage());
+            log.error("登录失败，用户不存在: {}", e.getMessage());
             return new LoginResponse(
                     false,
                     "用户名不存在",
@@ -442,7 +450,7 @@ public class UserServiceImpl implements UserService {
                     null
             );
         } catch (BadCredentialsException e) {
-            logger.error("登录失败，密码错误: {}", e.getMessage());
+            log.error("登录失败，密码错误: {}", e.getMessage());
             return new LoginResponse(
                     false,
                     "密码不正确",
@@ -451,7 +459,7 @@ public class UserServiceImpl implements UserService {
                     null
             );
         } catch (Exception e) {
-            logger.error("登录失败: {}", e.getMessage(), e);
+            log.error("登录失败: {}", e.getMessage(), e);
             return new LoginResponse(
                     false,
                     "登录失败: " + e.getMessage(),

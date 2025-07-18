@@ -4,6 +4,7 @@ import com.example.demo.entity.BankStatement;
 import com.example.demo.entity.Transaction;
 import com.example.demo.service.PdfParserService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -23,6 +24,7 @@ import com.example.demo.dto.CommonResponse;
 @RestController
 @RequestMapping("/api/bank-statements")
 @RequiredArgsConstructor
+@Slf4j
 public class BankStatementController {
 
     private final PdfParserService pdfParserService;
@@ -33,6 +35,7 @@ public class BankStatementController {
             BankStatement statement = pdfParserService.parseBankStatement(file.getInputStream());
             return new CommonResponse<>(200, "上传成功", statement);
         } catch (IOException e) {
+            log.error("上传失败: " + e.getMessage());
             return new CommonResponse<>(500, "上传失败: " + e.getMessage(), null);
         }
     }

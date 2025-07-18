@@ -4,13 +4,15 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.io.Serializable;
+
 /**
  * 统一返回结构
  */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class CommonResponse<T> {
+public class CommonResponse<T> implements Serializable {
     /**
      * 状态码
      */
@@ -23,4 +25,4 @@ public class CommonResponse<T> {
      * 具体数据
      */
     private T data;
-} 
+}

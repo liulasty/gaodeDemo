@@ -13,8 +13,13 @@ spring:
     name: geocode-service
   main:
     allow-bean-definition-overriding: true
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6379
+      password: '!Theworld1949'
   datasource:
-    url: ${MYSQL_URL:jdbc:mysql://172.26.0.1:3306/dynamic_menu?useSSL=false&serverTimezone=Asia/Shanghai}
+    url: ${MYSQL_URL:jdbc:mysql://127.0.0.1:3306/dynamic_menu?useSSL=false&serverTimezone=Asia/Shanghai}
     username: ${MYSQL_USER:root}
     password: ${MYSQL_PASSWORD:1234}
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -69,6 +74,13 @@ spring:
       resourceserver:
         jwt:
           jwk-set-uri: http://localhost:8080/.well-known/jwks.json
+  activemq:
+    in-memory: true
+    pool:
+      enabled: false
+    broker-url: "vm://embedded?broker.persistent=false"
+    packages:
+      trust-all: false
 
 file:
   upload-dir: ./uploads
@@ -141,3 +153,9 @@ logging:
 oauth2:
   init:
     enabled: true  # 是否在应用启动时初始化OAuth2数据库
+
+jms:
+  broker:
+    url: vm://embedded?broker.persistent=false&create=true
+  queue:
+    name: device.queue
