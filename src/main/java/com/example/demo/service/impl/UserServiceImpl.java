@@ -173,7 +173,7 @@ public class UserServiceImpl implements UserService {
             // 生成JWT令牌
             String token = jwtService.generateToken(authentication);
 
-            redisTemplate.opsForValue().set("user", authentication);
+            redisTemplate.opsForValue().set("user:"+token, StrUtil.toString(authentication));
             
             // 返回注册成功响应
             return RegisterResponse.builder()
