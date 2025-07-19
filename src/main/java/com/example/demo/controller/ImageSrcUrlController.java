@@ -171,12 +171,8 @@ public class ImageSrcUrlController {
      *
      */
     @DeleteMapping("/urls/batch")
-    public Map<String, Object> batchDeleteUrls(
-            @RequestBody Map<String, Object> body) {
-        Long recordId = Long.parseLong(body.get("recordId").toString());
-        List<Long> ids = ((List<?>) body.get("ids")).stream()
-                .map(id -> Long.parseLong(id.toString()))
-                .collect(Collectors.toList());
+    public Map<String, Object> batchDeleteUrls(@RequestBody List<Long> ids,@RequestBody Long recordId ) {
+
         
         int deletedCount = imageSrcUrlService.batchDeleteUrls(recordId, ids);
         
