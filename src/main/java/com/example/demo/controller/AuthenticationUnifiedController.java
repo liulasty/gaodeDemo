@@ -6,6 +6,7 @@ import com.example.demo.entity.Permission;
 import com.example.demo.service.*;
 import com.example.demo.util.UserContext;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -78,7 +79,6 @@ public class AuthenticationUnifiedController {
      */
     @PostMapping("/login")
     public CommonResponse<LoginResponse> login(@RequestBody LoginRequest loginRequest) {
-        // 直接调用 userService.login 方法
         LoginResponse response = userService.login(loginRequest);
         
         if (response.isSuccess()) {
@@ -107,7 +107,7 @@ public class AuthenticationUnifiedController {
      * 登出接口
      */
     @PostMapping("/logout")
-    public CommonResponse<String> logout(@RequestBody AuthenticationRequest request) {
+    public CommonResponse<String> logout(HttpServletRequest request) {
         userService.logout(request);
         return new CommonResponse<>(200, "登出成功", "登出成功");
     }

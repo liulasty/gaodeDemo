@@ -10,6 +10,7 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -164,4 +165,41 @@ public class JwtServiceImpl implements JwtService {
 
         return new UsernamePasswordAuthenticationToken(principal, token, authorities);
     }
+
+    /**
+     * 获取令牌剩余过期时间，单位为秒
+     * @param token JWT令牌字符串
+     * @return 剩余过期时间（秒）
+     */
+    @Override
+    public long getRemainingExpiration(String token) {
+        Jwt jwt = jwtDecoder.decode(token);
+        Instant expirationTime = jwt.getExpiresAt();
+        Instant now = Instant.now();
+        if (expirationTime == null) {
+            return -1;
+        }
+
+        if (expirationTime.isBefore(now)) {
+            return 0;
+        }
+
+        return ChronoUnit.SECONDS.between(now, expirationTime);
+    }
+
+    /**
+     * 从请求中获取令牌token
+     * @param request 请求对象
+     * @return token
+     */
+    @Override
+    public String getTokenFromRequest(HttpServletRequest request) {
+        String bearerToken = request.getHeader("Authorization");
+        if (bearerToken != null && bearerToken.startsWith("Bearer ")) {
+            return bearerToken.substring(7);
+        }
+        return null;
+    }
+
+
 }

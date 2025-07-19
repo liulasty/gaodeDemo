@@ -21,6 +21,7 @@ import com.example.demo.mapper.UserMapper;
 import com.example.demo.service.UserService;
 import com.example.demo.service.JwtService;
 import com.oracle.truffle.js.builtins.JSONBuiltins;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
@@ -63,6 +64,7 @@ public class UserServiceImpl implements UserService {
     private final JwtService jwtService;
     private final UserDetailsService userService;
     private final RedisTemplate<String, Object> redisTemplate;
+    private final TokenBlacklistService tokenBlacklistService;
     
     /**
      * 实现注册新用户方法
@@ -277,14 +279,20 @@ public class UserServiceImpl implements UserService {
      * @param request 认证请求对象，包含用户邮箱和刷新令牌
      */
     @Override
-    public void logout(AuthenticationRequest request) {
+    public void logout(HttpServletRequest request) {
         try {
-            // 在这里可以添加令牌黑名单等注销逻辑
-            redisTemplate.delete(request.refreshToken());
+
+
+            String token = jwtService.getTokenFromRequest( request);
+            long expiration = jwtService.getRemainingExpiration(token);
+
+            tokenBlacklistService.addToBlacklist(token, expiration);
+
+            String name = SecurityContextHolder.getContext().getAuthentication().getName();
+            log.info("用户 {} 已注销", name);
+
             // 清除安全上下文
             SecurityContextHolder.clearContext();
-
-            log.info("用户 {} 已注销", request.user());
         } catch (Exception e) {
             log.error("注销过程中发生错误: ", e);
             throw new RuntimeException("注销失败", e);

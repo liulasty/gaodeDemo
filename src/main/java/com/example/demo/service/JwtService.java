@@ -1,5 +1,6 @@
 package com.example.demo.service;
 
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 
@@ -55,4 +56,15 @@ public interface JwtService {
     boolean validateToken(String token);
 
     public Authentication getAuthentication(String token);
+
+
+    /**
+     * 获取令牌剩余过期时间，单位为秒
+     * @param token JWT令牌字符串
+     * @return 剩余过期时间（秒）
+     */
+    long getRemainingExpiration(String token);
+
+
+    String getTokenFromRequest(HttpServletRequest request);
 } 

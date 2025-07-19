@@ -7,6 +7,7 @@ import com.example.demo.dto.RegisterResponse;
 import com.example.demo.entity.User;
 import com.example.demo.dto.LoginRequest;
 import com.example.demo.dto.LoginResponse;
+import jakarta.servlet.http.HttpServletRequest;
 
 /**
  * 用户服务接口
@@ -74,7 +75,7 @@ public interface UserService {
      *
      * @param request 认证请求对象，包含用户邮箱和刷新令牌
      */
-    void logout(AuthenticationRequest request);
+    void logout(HttpServletRequest request);
     
     /**
      * 验证邮箱格式是否有效

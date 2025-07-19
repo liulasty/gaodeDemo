@@ -1,5 +1,6 @@
 package com.example.demo.filter;
 
+import com.example.demo.service.impl.TokenBlacklistService;
 import com.nimbusds.jose.proc.BadJOSEException;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.MalformedJwtException;
@@ -43,6 +44,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtService jwtService;
     private final UserDetailsService userDetailsService;
     private final JwtDecoder jwtDecoder;
+    private final TokenBlacklistService blacklistService;
 
     @Override
     protected void doFilterInternal(
@@ -57,6 +59,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 return;
             }
 
+
             // 2. 从Authorization头中获取JWT令牌
             final String authHeader = request.getHeader("Authorization");
             if (authHeader == null || !authHeader.startsWith("Bearer ")) {
@@ -65,14 +68,20 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             }
 
             // 3. 提取纯令牌（去掉"Bearer "前缀）
-            final String jwt = extractJwt(authHeader);
+            final String token = extractJwt(authHeader);
+
+
+            if (token != null && blacklistService.isBlacklisted(token)) {
+                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Token已失效");
+                return;
+            }
 
             // 4. 验证令牌并提取用户名
             String username;
             try {
-                username = extractUsernameFromJwt(jwt);
+                username = extractUsernameFromJwt(token);
                 // 验证令牌有效性
-                jwtService.validateToken(jwt);
+                jwtService.validateToken(token);
             } catch (ExpiredJwtException e) {
                 log.warn("Token expired: {}", e.getMessage());
                 handleException(e, response, "Token已过期", HttpServletResponse.SC_UNAUTHORIZED);
@@ -89,7 +98,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             // 5. 如果用户名不为空且当前上下文没有认证信息
             if (SecurityContextHolder.getContext().getAuthentication() == null) {
-                Authentication authentication = jwtService.getAuthentication(jwt);
+                Authentication authentication = jwtService.getAuthentication(token);
 
                 
                 // 8. 更新安全上下文
@@ -119,7 +128,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String[] publicEndpoints = {
                 "/api/auth/login",
                 "/api/auth/refresh-token",
-                "/api/auth/logout",
                 "/api/auth/register",
                 "/api/auth/providers",
                 "/api/geocode/ip",

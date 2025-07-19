@@ -6,11 +6,9 @@ import com.example.demo.filter.JwtAuthenticationFilter;
 import com.example.demo.handler.OAuth2AuthenticationSuccessHandler;
 import com.example.demo.mapper.PermissionRuleMapper;
 import com.example.demo.service.impl.OAuth2UserServiceImpl;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
-import org.springframework.http.HttpStatus;
 
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
@@ -20,7 +18,6 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -30,7 +27,6 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.security.web.authentication.logout.LogoutHandler;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.web.cors.CorsConfiguration;
@@ -58,8 +54,6 @@ public class SecurityConfig {
     private final PermissionRuleMapper permissionRuleMapper;
     private final OAuth2UserServiceImpl oAuth2UserService;
     private final OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler;
-    // 登出处理器
-    private final LogoutHandler logoutHandler;
 
     // 定义常量，避免硬编码
     private static final String AUTH_PATH = "/api/v1/auth/**";
@@ -77,14 +71,12 @@ public class SecurityConfig {
 
     public SecurityConfig(JwtAuthenticationFilter jwtAuthFilter,
                           UserDetailsService userDetailsService,
-                          LogoutHandler logoutHandler,
                           JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint,
                           JwtDecoder jwtDecoder,
                           PermissionRuleMapper permissionRuleMapper,
                           OAuth2UserServiceImpl oAuth2UserService,
                           OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler) {
         this.userDetailsService = userDetailsService;
-        this.logoutHandler = logoutHandler;
         this.jwtAuthenticationEntryPoint = jwtAuthenticationEntryPoint;
         this.jwtAuthFilter = jwtAuthFilter;
         this.jwtDecoder = jwtDecoder;
@@ -147,18 +139,7 @@ public class SecurityConfig {
                     .successHandler(oAuth2AuthenticationSuccessHandler)
                 )
                 // 禁用默认的 OAuth2 资源服务器配置
-                .oauth2ResourceServer(AbstractHttpConfigurer::disable)
-                // 登出配置
-                .logout(logout -> logout
-                        .logoutUrl("/api/auth/logout")
-                        .addLogoutHandler(logoutHandler)
-                        .logoutSuccessHandler((request, response, authentication) -> {
-                            if (SecurityContextHolder.getContext() != null) {
-                                SecurityContextHolder.clearContext();
-                            }
-                            response.setStatus(HttpStatus.OK.value());
-                        })
-                );
+                .oauth2ResourceServer(AbstractHttpConfigurer::disable);
 
         return http.build();
     }
