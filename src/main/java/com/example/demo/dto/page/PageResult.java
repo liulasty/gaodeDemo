@@ -5,6 +5,9 @@ import lombok.Data;
 
 import java.util.List;
 
+/**
+ * @author Administrator
+ */
 @Data
 public class PageResult<T> {
     private Integer pageNum;

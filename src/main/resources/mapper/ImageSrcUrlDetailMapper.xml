@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace = "com.example.demo.mapper.ImageSrcUrlDetailMapper">
+
+
+    <insert id="insertList">
+        insert into t_image_src_url_detail (title, `index`, src, alt, attributes,tid) values
+        <foreach collection="imageSrcUrlDetail" item="item" separator=",">
+            (#{item.title}, #{item.index}, #{item.src}, #{item.alt}, #{item.attributes}, #{id})
+        </foreach>
+    </insert>
+</mapper>
