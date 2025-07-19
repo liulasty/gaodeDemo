@@ -9,6 +9,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.demo.dto.CommonResponse;
 import com.example.demo.dto.page.PageQuery;
 import com.example.demo.dto.page.PageResult;
+import com.example.demo.imagelistcrawler.ImageSrcCrawlRecord;
 import com.example.demo.imagelistcrawler.ImageSrcUrl;
 import com.example.demo.imagelistcrawler.ImageSrcUrlDetail;
 import com.example.demo.service.impl.ImageSrcUrlServiceImpl;
@@ -104,73 +105,55 @@ public class ImageSrcUrlController {
         return new CommonResponse<>(200, "保存成功", "保存成功");
     }
 
+    /**
+     * 获取图片源爬取记录列表
+     *
+     * @param page 页码
+     *  @param           size 每页大小
+     *  @param           keyword 关键字
+     * @returns 分页结果
+     */
     @GetMapping("/crawl-records")
-    public PageResult<Map<String, Object>> getCrawlRecords(
+    public PageResult<ImageSrcCrawlRecord> getCrawlRecords(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) String keyword) {
         // 分页初始化
-        Page<ImageSrcUrl> pageInfo = new Page<>(page, size);
+        Page<ImageSrcCrawlRecord> pageInfo = new Page<>(page, size);
         
         // 构建查询条件
-        QueryWrapper<ImageSrcUrl> wrapper = new QueryWrapper<>();
+        QueryWrapper<ImageSrcCrawlRecord> wrapper = new QueryWrapper<>();
         if (StringUtils.isNotBlank(keyword)) {
             wrapper.like("alt", keyword);
         }
         
         // 执行查询并转换结果
-        IPage<ImageSrcUrl> pageResult = imageSrcUrlService.page(pageInfo, wrapper);
-        List<Map<String, Object>> records = pageResult.getRecords().stream().map(record -> {
-            Map<String, Object> map = new HashMap<>();
-            map.put("id", record.getId());
-            map.put("title", record.getAlt());
-            map.put("href", record.getHref());
-            map.put("createdTime", record.getTimestamp());
-            map.put("urlCount", 0); // 需要从关联表查询
-            return map;
-        }).collect(Collectors.toList());
+        IPage<ImageSrcCrawlRecord> pageResult = imageSrcUrlService.pageCrawlRecords(pageInfo, wrapper);
+
         
-        return new PageResult<>(pageResult, records);
+        return new PageResult<>(pageResult, pageResult.getRecords());
     }
 
+    /**
+     * 获取爬取记录详情及关联的URL列表
+     * @param id 记录ID
+     * @param params 查询参数
+     */
     @GetMapping("/crawl-records/{id}")
-    public Map<String, Object> getCrawlRecordDetail(
+    public PageResult getCrawlRecordDetail(
             @PathVariable Long id,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size) {
-        Map<String, Object> result = new HashMap<>();
+         PageResult<ImageSrcUrlDetail> pageResult = imageSrcUrlService.pageCrawlRecordDetail(id, page, size);
+
         
-        // 查询记录详情
-        ImageSrcUrl record = imageSrcUrlService.getById(id);
-        Map<String, Object> recordMap = new HashMap<>();
-        recordMap.put("id", record.getId());
-        recordMap.put("title", record.getAlt());
-        recordMap.put("href", record.getHref());
-        recordMap.put("createdTime", record.getCreateTime());
-        result.put("record", recordMap);
-        
-        // 查询关联URL列表
-        Page<ImageSrcUrlDetail> pageInfo = new Page<>(page, size);
-        QueryWrapper<ImageSrcUrlDetail> wrapper = new QueryWrapper<>();
-        wrapper.eq("tid", id);
-        IPage<ImageSrcUrlDetail> urlPage = imageSrcUrlService.getUrlDetailPage(pageInfo, wrapper);
-        
-        Map<String, Object> urls = new HashMap<>();
-        urls.put("total", urlPage.getTotal());
-        urls.put("list", urlPage.getRecords().stream().map(url -> {
-            Map<String, Object> urlMap = new HashMap<>();
-            urlMap.put("id", url.getId());
-            urlMap.put("src", url.getSrc());
-            urlMap.put("alt", url.getAlt());
-            urlMap.put("index", url.getIndex());
-            urlMap.put("createdTime", url.getCreateTime());
-            return urlMap;
-        }).collect(Collectors.toList()));
-        result.put("urls", urls);
-        
-        return result;
+        return pageResult;
     }
 
+    /**
+     * 删除爬取记录及关联的URL
+     * @param id 爬取记录ID
+     */
     @DeleteMapping("/crawl-records/{id}")
     public Map<String, Object> deleteCrawlRecord(@PathVariable Long id) {
         // 删除记录及关联URL
@@ -182,6 +165,11 @@ public class ImageSrcUrlController {
         return result;
     }
 
+    /**
+     * 批量删除URL
+     * @param body 请求体
+     *
+     */
     @DeleteMapping("/urls/batch")
     public Map<String, Object> batchDeleteUrls(
             @RequestBody Map<String, Object> body) {
@@ -198,6 +186,10 @@ public class ImageSrcUrlController {
         return result;
     }
 
+    /**
+     * 获取URL详情
+     * @param id URLID
+     */
     @GetMapping("/urls/{id}")
     public Map<String, Object> getUrlDetail(@PathVariable Long id) {
         ImageSrcUrlDetail url = imageSrcUrlService.getUrlDetail(id);
@@ -210,11 +202,16 @@ public class ImageSrcUrlController {
         result.put("src", url.getSrc());
         result.put("alt", url.getAlt());
         result.put("attributes", url.getAttributes());
-        result.put("createdTime", url.getCreateTime());
-        result.put("updatedTime", url.getUpdateTime());
+        result.put("createdTime", url.getCreatedTime());
+        result.put("updatedTime", url.getUpdatedTime());
         return result;
     }
 
+    /**
+     * 更新URL
+     * @param id URLID
+     * @param data 更新数据
+     */
     @PatchMapping("/urls/{id}")
     public Map<String, Object> updateUrl(
             @PathVariable Long id,
@@ -232,7 +229,7 @@ public class ImageSrcUrlController {
         
         Map<String, Object> result = new HashMap<>();
         result.put("success", success);
-        result.put("updatedTime", url.getUpdateTime());
+        result.put("updatedTime", url.getUpdatedTime());
         return result;
     }
 }

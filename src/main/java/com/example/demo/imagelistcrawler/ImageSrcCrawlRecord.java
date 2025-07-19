@@ -12,7 +12,7 @@ import java.time.LocalTime;
  * @author Administrator
  */
 @Data
-@TableName("t_image_src_crawl_recored")
+@TableName("t_image_src_crawl_record")
 public class ImageSrcCrawlRecord {
 
     @TableId(type = IdType.AUTO)
@@ -22,7 +22,7 @@ public class ImageSrcCrawlRecord {
 
     private String href;
 
-    private Long ImageSum;
+    private Long imageSum;
 
     private LocalTime  createdTime;
 }
