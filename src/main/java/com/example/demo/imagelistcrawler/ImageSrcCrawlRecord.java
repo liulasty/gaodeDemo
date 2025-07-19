@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 
 /**
@@ -24,5 +25,5 @@ public class ImageSrcCrawlRecord {
 
     private Long imageSum;
 
-    private LocalTime  createdTime;
+    private LocalDateTime createdTime;
 }

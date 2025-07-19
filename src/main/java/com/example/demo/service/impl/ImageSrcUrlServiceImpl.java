@@ -70,21 +70,29 @@ public class ImageSrcUrlServiceImpl  extends ServiceImpl<ImageSrcUrlMapper, Imag
 
     @Override
     public int deleteRecordWithUrls(Long id) {
+        int deletedCount = imageSrcUrlDetailMapper.delete(new QueryWrapper<ImageSrcUrlDetail>().eq("tid", id));
+        if (deletedCount > 0) {
+            return imageSrcCrawlRecordMapper.deleteById(id);
+        }
         return 0;
     }
 
     @Override
     public int batchDeleteUrls(Long recordId, List<Long> ids) {
-            return 0;
+        int deletedCount = imageSrcUrlDetailMapper.delete(new QueryWrapper<ImageSrcUrlDetail>().eq("tid", recordId).in("id", ids));
+        if (deletedCount > 0) {
+            return imageSrcCrawlRecordMapper.deleteById(recordId);
+        }
+        return 0;
     }
 
     @Override
     public ImageSrcUrlDetail getUrlDetail(Long id) {
-            return null;
+        return imageSrcUrlDetailMapper.selectById(id);
     }
 
     @Override
     public boolean updateUrl(ImageSrcUrlDetail url) {
-        return false;
+        return imageSrcUrlDetailMapper.updateById(url) > 0;
     }
 }

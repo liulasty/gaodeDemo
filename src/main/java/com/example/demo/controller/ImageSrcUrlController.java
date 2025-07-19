@@ -198,7 +198,7 @@ public class ImageSrcUrlController {
         result.put("id", url.getId());
         result.put("tid", url.getTid());
         result.put("title", url.getAlt());
-        result.put("index", url.getIndex());
+        result.put("index", url.getImageIndex());
         result.put("src", url.getSrc());
         result.put("alt", url.getAlt());
         result.put("attributes", url.getAttributes());

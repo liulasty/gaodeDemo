@@ -5,9 +5,9 @@
 
 
     <insert id="insertList">
-        insert into t_image_src_url_detail (title, `index`, src, alt, attributes,tid) values
+        insert into t_image_src_url_detail (title, image_index, src, alt, attributes,tid) values
         <foreach collection="imageSrcUrlDetail" item="item" separator=",">
-            (#{item.title}, #{item.index}, #{item.src}, #{item.alt}, #{item.attributes}, #{id})
+            (#{item.title}, #{item.imageIndex}, #{item.src}, #{item.alt}, #{item.attributes}, #{id})
         </foreach>
     </insert>
 </mapper>
